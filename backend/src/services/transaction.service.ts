@@ -1,6 +1,7 @@
 import { Prisma, Transaction, PaymentMethod, PaymentStatus } from '@prisma/client';
 import prisma from '../config/database';
 import { ApiError } from '../middlewares/errorHandler';
+import { StockSyncService } from './stock-sync.service';
 
 export interface TransactionItemDTO {
   productId: string;
@@ -244,6 +245,26 @@ export class TransactionService {
         }
       }
 
+      // Sync product stock levels (update Product.currentStock)
+      const productIdsToSync = [...new Set(transactionItems.map((item) => item.productId))];
+      for (const productId of productIdsToSync) {
+        const totalQtySold = transactionItems
+          .filter((item) => item.productId === productId)
+          .reduce((sum, item) => sum + item.quantity, 0);
+
+        await tx.product.update({
+          where: { id: productId },
+          data: {
+            currentStock: {
+              decrement: new Prisma.Decimal(totalQtySold),
+            },
+            stockVersion: {
+              increment: 1,
+            },
+          },
+        });
+      }
+
       // Update customer loyalty points
       if (customerId) {
         await tx.customer.update({
@@ -457,6 +478,26 @@ export class TransactionService {
             },
           });
         }
+      }
+
+      // Sync product stock levels (restore Product.currentStock)
+      const productIdsToSync = [...new Set(transaction.items.map((item) => item.productId))];
+      for (const productId of productIdsToSync) {
+        const totalQtyRestored = transaction.items
+          .filter((item) => item.productId === productId)
+          .reduce((sum, item) => sum + Number(item.quantity), 0);
+
+        await tx.product.update({
+          where: { id: productId },
+          data: {
+            currentStock: {
+              increment: new Prisma.Decimal(totalQtyRestored),
+            },
+            stockVersion: {
+              increment: 1,
+            },
+          },
+        });
       }
 
       // Reverse loyalty points
