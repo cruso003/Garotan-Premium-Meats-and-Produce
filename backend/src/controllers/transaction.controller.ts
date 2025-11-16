@@ -3,20 +3,33 @@ import transactionService from '../services/transaction.service';
 import { asyncHandler } from '../middlewares/errorHandler';
 import { ApiError } from '../middlewares/errorHandler';
 import { PaymentMethod } from '@prisma/client';
+import { retryWithBackoff, isStockError, isConcurrencyError } from '../utils/retry';
 
 export class TransactionController {
   /**
    * POST /api/transactions
    * Create a new transaction (POS sale)
+   * Includes retry logic for concurrent transactions
    */
   createTransaction = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const transaction = await transactionService.createTransaction(
-      req.user.userId,
-      req.body
+    // Wrap transaction creation with retry logic to handle concurrent updates
+    const transaction = await retryWithBackoff(
+      async () => {
+        return await transactionService.createTransaction(
+          req.user!.userId,
+          req.body
+        );
+      },
+      {
+        maxAttempts: 3,
+        delayMs: 150,
+        backoffMultiplier: 2,
+      },
+      'Transaction Creation'
     );
 
     res.status(201).json({
@@ -59,6 +72,7 @@ export class TransactionController {
   /**
    * POST /api/transactions/:id/void
    * Void a transaction
+   * Includes retry logic for concurrent stock updates
    */
   voidTransaction = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
@@ -72,7 +86,18 @@ export class TransactionController {
       throw new ApiError(400, 'Void reason is required');
     }
 
-    await transactionService.voidTransaction(id, req.user.userId, reason);
+    // Wrap void operation with retry logic
+    await retryWithBackoff(
+      async () => {
+        return await transactionService.voidTransaction(id, req.user!.userId, reason);
+      },
+      {
+        maxAttempts: 3,
+        delayMs: 100,
+        backoffMultiplier: 2,
+      },
+      'Transaction Void'
+    );
 
     res.status(200).json({
       success: true,

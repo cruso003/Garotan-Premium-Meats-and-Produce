@@ -87,11 +87,19 @@ export class TransactionService {
       throw new ApiError(400, 'Customer is required to redeem loyalty points');
     }
 
-    // Fetch products and validate stock
+    // Fetch products and validate stock (with optimistic locking check)
     const productIds = items.map((item) => item.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, isActive: true },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        retailPrice: true,
+        wholesalePrice: true,
+        currentStock: true,
+        stockVersion: true,
+        minStockLevel: true,
         stockBatches: {
           where: {
             quantity: { gt: 0 },
@@ -105,6 +113,34 @@ export class TransactionService {
 
     if (products.length !== productIds.length) {
       throw new ApiError(400, 'One or more products not found or inactive');
+    }
+
+    // Enhanced stock validation using cached currentStock
+    const stockValidationErrors: string[] = [];
+    for (const item of items) {
+      const product = products.find((p) => p.id === item.productId);
+      if (!product) continue;
+
+      const currentStock = Number(product.currentStock);
+
+      // Check against cached stock first (fast)
+      if (currentStock < item.quantity) {
+        stockValidationErrors.push(
+          `${product.name}: Insufficient stock. Available: ${currentStock.toFixed(2)}, Requested: ${item.quantity}`
+        );
+      }
+
+      // Warn if approaching minimum stock level
+      if (currentStock - item.quantity <= product.minStockLevel) {
+        console.warn(
+          `Warning: ${product.name} will be at or below minimum stock level after this transaction. ` +
+          `Current: ${currentStock}, After Sale: ${currentStock - item.quantity}, Minimum: ${product.minStockLevel}`
+        );
+      }
+    }
+
+    if (stockValidationErrors.length > 0) {
+      throw new ApiError(400, `Stock validation failed:\n${stockValidationErrors.join('\n')}`);
     }
 
     // Calculate totals and prepare transaction items

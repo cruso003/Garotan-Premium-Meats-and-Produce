@@ -3,20 +3,33 @@ import inventoryService from '../services/inventory.service';
 import { asyncHandler } from '../middlewares/errorHandler';
 import { ApiError } from '../middlewares/errorHandler';
 import { AdjustmentType } from '@prisma/client';
+import { retryWithBackoff } from '../utils/retry';
 
 export class InventoryController {
   /**
    * POST /api/inventory/receive
    * Receive new stock
+   * Includes retry logic for concurrent updates
    */
   receiveStock = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const stockBatch = await inventoryService.receiveStock(
-      req.body,
-      req.user.userId
+    // Wrap stock receipt with retry logic
+    const stockBatch = await retryWithBackoff(
+      async () => {
+        return await inventoryService.receiveStock(
+          req.body,
+          req.user!.userId
+        );
+      },
+      {
+        maxAttempts: 3,
+        delayMs: 100,
+        backoffMultiplier: 2,
+      },
+      'Stock Receipt'
     );
 
     res.status(201).json({
@@ -29,15 +42,27 @@ export class InventoryController {
   /**
    * POST /api/inventory/adjust
    * Adjust stock (spoilage, corrections, etc.)
+   * Includes retry logic for concurrent updates
    */
   adjustStock = asyncHandler(async (req: Request, res: Response) => {
     if (!req.user) {
       throw new ApiError(401, 'Unauthorized');
     }
 
-    const adjustment = await inventoryService.adjustStock(
-      req.body,
-      req.user.userId
+    // Wrap stock adjustment with retry logic
+    const adjustment = await retryWithBackoff(
+      async () => {
+        return await inventoryService.adjustStock(
+          req.body,
+          req.user!.userId
+        );
+      },
+      {
+        maxAttempts: 3,
+        delayMs: 100,
+        backoffMultiplier: 2,
+      },
+      'Stock Adjustment'
     );
 
     res.status(201).json({
