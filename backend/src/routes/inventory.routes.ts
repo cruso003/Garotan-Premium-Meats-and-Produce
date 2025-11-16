@@ -82,6 +82,12 @@ router.get('/near-expiry', inventoryController.getNearExpiryProducts);
 router.get('/expired', inventoryController.getExpiredProducts);
 
 /**
+ * GET /api/inventory/low-stock
+ * Get low stock products (below minimum level)
+ */
+router.get('/low-stock', inventoryController.getLowStockProducts);
+
+/**
  * GET /api/inventory/summary
  * Get stock summary for all products
  */

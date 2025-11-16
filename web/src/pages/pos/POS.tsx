@@ -1,5 +1,7 @@
-import { useState } from 'react';
-import { Plus, Minus, Trash2, Search, User } from 'lucide-react';
+import { useState, useEffect } from 'react';
+import { Plus, Minus, Trash2, Search, User, Package, CheckCircle } from 'lucide-react';
+import { api } from '@/lib/api';
+import type { Product, Customer } from '@/types';
 
 interface CartItem {
   productId: string;
@@ -12,8 +14,42 @@ interface CartItem {
 export default function POS() {
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [products, setProducts] = useState<Product[]>([]);
+  const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
+  const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
+  const [isProcessing, setIsProcessing] = useState(false);
+  const [showSuccess, setShowSuccess] = useState(false);
 
-  const addToCart = (product: { id: string; name: string; price: number }) => {
+  useEffect(() => {
+    fetchProducts();
+  }, []);
+
+  useEffect(() => {
+    if (searchQuery.trim()) {
+      const filtered = products.filter((p) =>
+        p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
+        (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase()))
+      );
+      setFilteredProducts(filtered.slice(0, 20));
+    } else {
+      setFilteredProducts(products.slice(0, 20));
+    }
+  }, [searchQuery, products]);
+
+  const fetchProducts = async () => {
+    try {
+      const response = await api.get<{ data: Product[] }>('/products?limit=100');
+      const activeProducts = response.data.filter((p) => p.isActive);
+      setProducts(activeProducts);
+      setFilteredProducts(activeProducts.slice(0, 20));
+    } catch (error) {
+      console.error('Failed to fetch products:', error);
+    }
+  };
+
+  const addToCart = (product: Product) => {
     const existingItem = cart.find((item) => item.productId === product.id);
 
     if (existingItem) {
@@ -30,7 +66,7 @@ export default function POS() {
         {
           productId: product.id,
           productName: product.name,
-          unitPrice: product.price,
+          unitPrice: parseFloat(product.retailPrice),
           quantity: 1,
           discount: 0,
         },
@@ -61,6 +97,42 @@ export default function POS() {
   const tax = subtotal * 0.1; // 10% tax
   const total = subtotal + tax;
 
+  const handleCheckout = async () => {
+    if (cart.length === 0) {
+      alert('Cart is empty');
+      return;
+    }
+
+    setIsProcessing(true);
+    try {
+      const transactionData = {
+        customerId: selectedCustomer?.id,
+        paymentMethod,
+        items: cart.map((item) => ({
+          productId: item.productId,
+          quantity: item.quantity,
+          unitPrice: item.unitPrice,
+          discount: item.discount,
+        })),
+      };
+
+      await api.post('/transactions', transactionData);
+
+      // Show success message
+      setShowSuccess(true);
+      setTimeout(() => setShowSuccess(false), 3000);
+
+      // Clear cart
+      setCart([]);
+      setSelectedCustomer(null);
+      setPaymentMethod('CASH');
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Transaction failed');
+    } finally {
+      setIsProcessing(false);
+    }
+  };
+
   const formatCurrency = (amount: number) => {
     return new Intl.NumberFormat('en-LR', {
       style: 'currency',
@@ -71,6 +143,14 @@ export default function POS() {
 
   return (
     <div className="h-full flex">
+      {/* Success notification */}
+      {showSuccess && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center z-50">
+          <CheckCircle className="h-6 w-6 mr-3" />
+          <span className="font-semibold">Transaction completed successfully!</span>
+        </div>
+      )}
+
       {/* Products section */}
       <div className="flex-1 p-6 overflow-y-auto">
         <div className="mb-6">
@@ -89,49 +169,72 @@ export default function POS() {
           </div>
         </div>
 
-        {/* Quick product grid - Demo */}
-        <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
-          {/* Demo products */}
-          {[
-            { id: '1', name: 'Chicken Breast', price: 450 },
-            { id: '2', name: 'Beef Steak', price: 800 },
-            { id: '3', name: 'Pork Chops', price: 550 },
-            { id: '4', name: 'Fresh Tomatoes', price: 150 },
-            { id: '5', name: 'Lettuce', price: 100 },
-            { id: '6', name: 'Ground Beef', price: 600 },
-          ].map((product) => (
-            <button
-              key={product.id}
-              onClick={() => addToCart(product)}
-              className="card hover:shadow-lg transition-shadow text-left"
-            >
-              <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
-                <Package className="h-12 w-12 text-gray-400" />
-              </div>
-              <h3 className="font-semibold text-gray-900 mb-1">{product.name}</h3>
-              <p className="text-lg font-bold text-primary">
-                {formatCurrency(product.price)}
-              </p>
-            </button>
-          ))}
-        </div>
+        {/* Products grid */}
+        {filteredProducts.length > 0 ? (
+          <div className="grid grid-cols-2 md:grid-cols-3 lg:grid-cols-4 gap-4">
+            {filteredProducts.map((product) => (
+              <button
+                key={product.id}
+                onClick={() => addToCart(product)}
+                className="card hover:shadow-lg transition-shadow text-left"
+              >
+                <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
+                  <Package className="h-12 w-12 text-gray-400" />
+                </div>
+                <h3 className="font-semibold text-gray-900 mb-1 truncate">
+                  {product.name}
+                </h3>
+                <p className="text-xs text-gray-500 mb-2">{product.sku}</p>
+                <p className="text-lg font-bold text-primary">
+                  {formatCurrency(parseFloat(product.retailPrice))}
+                </p>
+                {product.currentStock !== undefined && product.currentStock <= product.minStockLevel && (
+                  <p className="text-xs text-red-600 mt-1">Low stock!</p>
+                )}
+              </button>
+            ))}
+          </div>
+        ) : (
+          <div className="text-center py-12">
+            <Package className="h-16 w-16 mx-auto text-gray-300 mb-4" />
+            <p className="text-gray-500">No products found</p>
+          </div>
+        )}
       </div>
 
       {/* Cart section */}
       <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
-        {/* Customer info */}
+        {/* Customer selection */}
         <div className="p-4 border-b border-gray-200">
-          <button className="w-full btn btn-primary flex items-center justify-center">
-            <User className="mr-2 h-5 w-5" />
-            Add Customer
-          </button>
+          {selectedCustomer ? (
+            <div className="flex items-center justify-between p-2 bg-primary-50 rounded">
+              <div className="flex items-center">
+                <User className="h-5 w-5 text-primary mr-2" />
+                <div>
+                  <p className="font-medium text-gray-900">{selectedCustomer.name}</p>
+                  <p className="text-xs text-gray-600">{selectedCustomer.phone}</p>
+                </div>
+              </div>
+              <button
+                onClick={() => setSelectedCustomer(null)}
+                className="text-xs text-red-600 hover:text-red-700"
+              >
+                Remove
+              </button>
+            </div>
+          ) : (
+            <button className="w-full btn btn-primary flex items-center justify-center">
+              <User className="mr-2 h-5 w-5" />
+              Walk-in Customer
+            </button>
+          )}
         </div>
 
         {/* Cart items */}
         <div className="flex-1 overflow-y-auto p-4">
           {cart.length === 0 ? (
             <div className="flex flex-col items-center justify-center h-full text-gray-400">
-              <ShoppingCart className="h-16 w-16 mb-4" />
+              <Package className="h-16 w-16 mb-4" />
               <p>Cart is empty</p>
             </div>
           ) : (
@@ -177,6 +280,25 @@ export default function POS() {
 
         {/* Cart totals and checkout */}
         <div className="border-t border-gray-200 p-4 space-y-3">
+          {/* Payment method */}
+          <div>
+            <label className="block text-sm font-medium text-gray-700 mb-2">
+              Payment Method
+            </label>
+            <select
+              value={paymentMethod}
+              onChange={(e) => setPaymentMethod(e.target.value)}
+              className="input w-full"
+            >
+              <option value="CASH">Cash</option>
+              <option value="MOBILE_MONEY_MTN">Mobile Money (MTN)</option>
+              <option value="MOBILE_MONEY_ORANGE">Mobile Money (Orange)</option>
+              <option value="CARD">Card</option>
+              <option value="CREDIT">Credit</option>
+            </select>
+          </div>
+
+          {/* Totals */}
           <div className="space-y-2 text-sm">
             <div className="flex justify-between">
               <span className="text-gray-600">Subtotal</span>
@@ -192,57 +314,16 @@ export default function POS() {
             </div>
           </div>
 
+          {/* Checkout button */}
           <button
-            disabled={cart.length === 0}
+            onClick={handleCheckout}
+            disabled={cart.length === 0 || isProcessing}
             className="w-full btn btn-primary py-3 text-lg disabled:opacity-50 disabled:cursor-not-allowed"
           >
-            Checkout
+            {isProcessing ? 'Processing...' : 'Complete Sale'}
           </button>
         </div>
       </div>
     </div>
-  );
-}
-
-function Package({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <path d="M16.5 9.4l-9-5.19" />
-      <path d="M21 16V8a2 2 0 0 0-1-1.73l-7-4a2 2 0 0 0-2 0l-7 4A2 2 0 0 0 3 8v8a2 2 0 0 0 1 1.73l7 4a2 2 0 0 0 2 0l7-4A2 2 0 0 0 21 16z" />
-      <polyline points="3.27 6.96 12 12.01 20.73 6.96" />
-      <line x1="12" y1="22.08" x2="12" y2="12" />
-    </svg>
-  );
-}
-
-function ShoppingCart({ className }: { className?: string }) {
-  return (
-    <svg
-      xmlns="http://www.w3.org/2000/svg"
-      width="24"
-      height="24"
-      viewBox="0 0 24 24"
-      fill="none"
-      stroke="currentColor"
-      strokeWidth="2"
-      strokeLinecap="round"
-      strokeLinejoin="round"
-      className={className}
-    >
-      <circle cx="9" cy="21" r="1" />
-      <circle cx="20" cy="21" r="1" />
-      <path d="M1 1h4l2.68 13.39a2 2 0 0 0 2 1.61h9.72a2 2 0 0 0 2-1.61L23 6H6" />
-    </svg>
   );
 }

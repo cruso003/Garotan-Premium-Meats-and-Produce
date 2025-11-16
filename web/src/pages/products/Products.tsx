@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Edit, Trash2 } from 'lucide-react';
 import { api } from '@/lib/api';
+import ProductModal from '@/components/products/ProductModal';
 import type { Product, PaginatedResponse } from '@/types';
 
 export default function Products() {
@@ -9,6 +10,9 @@ export default function Products() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedProduct, setSelectedProduct] = useState<Product | undefined>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -47,6 +51,50 @@ export default function Products() {
     }
   };
 
+  const handleAddProduct = () => {
+    setSelectedProduct(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleEditProduct = (product: Product) => {
+    setSelectedProduct(product);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteProduct = async (product: Product) => {
+    if (!confirm(`Are you sure you want to delete "${product.name}"?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/products/${product.id}`);
+      fetchProducts();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to delete product');
+    }
+  };
+
+  const handleSubmit = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      if (selectedProduct) {
+        // Update existing product
+        await api.put(`/products/${selectedProduct.id}`, data);
+      } else {
+        // Create new product
+        await api.post('/products', data);
+      }
+      setIsModalOpen(false);
+      setSelectedProduct(undefined);
+      fetchProducts();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to save product');
+      throw error;
+    } finally {
+      setIsSubmitting(false);
+    }
+  };
+
   const formatCurrency = (amount: string) => {
     return new Intl.NumberFormat('en-LR', {
       style: 'currency',
@@ -77,7 +125,7 @@ export default function Products() {
             Manage your product catalog and pricing
           </p>
         </div>
-        <button className="btn btn-primary flex items-center">
+        <button onClick={handleAddProduct} className="btn btn-primary flex items-center">
           <Plus className="mr-2 h-5 w-5" />
           Add Product
         </button>
@@ -96,12 +144,19 @@ export default function Products() {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
+                  setPage(1);
                   fetchProducts();
                 }
               }}
             />
           </div>
-          <button onClick={fetchProducts} className="btn btn-primary">
+          <button
+            onClick={() => {
+              setPage(1);
+              fetchProducts();
+            }}
+            className="btn btn-primary"
+          >
             Search
           </button>
         </div>
@@ -187,10 +242,18 @@ export default function Products() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <button className="text-primary hover:text-primary-600 mr-3">
+                        <button
+                          onClick={() => handleEditProduct(product)}
+                          className="text-primary hover:text-primary-600 mr-3"
+                          title="Edit product"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button className="text-red-600 hover:text-red-700">
+                        <button
+                          onClick={() => handleDeleteProduct(product)}
+                          className="text-red-600 hover:text-red-700"
+                          title="Delete product"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </td>
@@ -225,6 +288,18 @@ export default function Products() {
           </>
         )}
       </div>
+
+      {/* Product Modal */}
+      <ProductModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedProduct(undefined);
+        }}
+        onSubmit={handleSubmit}
+        product={selectedProduct}
+        isLoading={isSubmitting}
+      />
     </div>
   );
 }

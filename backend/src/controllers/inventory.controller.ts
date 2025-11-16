@@ -128,6 +128,19 @@ export class InventoryController {
   });
 
   /**
+   * GET /api/inventory/low-stock
+   * Get low stock products
+   */
+  getLowStockProducts = asyncHandler(async (_req: Request, res: Response) => {
+    const products = await inventoryService.getLowStockProducts();
+
+    res.status(200).json({
+      success: true,
+      data: products,
+    });
+  });
+
+  /**
    * GET /api/inventory/summary
    * Get stock summary for all products
    */
