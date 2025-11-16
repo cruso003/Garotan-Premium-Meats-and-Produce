@@ -12,6 +12,8 @@ import {
   Menu,
   X,
   ChevronDown,
+  FileSpreadsheet,
+  History,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
 
@@ -22,6 +24,8 @@ const navigation = [
   { name: 'Customers', href: '/customers', icon: Users },
   { name: 'Inventory', href: '/inventory', icon: Warehouse },
   { name: 'Reports', href: '/reports', icon: FileText },
+  { name: 'CSV Operations', href: '/csv', icon: FileSpreadsheet },
+  { name: 'Audit Trail', href: '/audit', icon: History },
   { name: 'Settings', href: '/settings', icon: Settings },
 ];
 
