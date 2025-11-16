@@ -1,9 +1,11 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, Trash2, Search, User, Package, CheckCircle, Camera } from 'lucide-react';
+import { Plus, Minus, Trash2, Search, User, Package, CheckCircle, Camera, Award, TrendingUp } from 'lucide-react';
 import { api } from '@/lib/api';
 import BarcodeScanner from '@/components/barcode/BarcodeScanner';
 import PrintReceipt from '@/components/receipts/PrintReceipt';
-import type { Product, Customer } from '@/types';
+import CustomerSearch from '@/components/pos/CustomerSearch';
+import CustomerHistory from '@/components/pos/CustomerHistory';
+import type { Product, Customer, LoyaltyTier } from '@/types';
 
 interface CartItem {
   productId: string;
@@ -12,6 +14,18 @@ interface CartItem {
   quantity: number;
   discount: number;
 }
+
+const TIER_COLORS: Record<LoyaltyTier, string> = {
+  BRONZE: 'bg-amber-700 text-white',
+  SILVER: 'bg-gray-400 text-white',
+  GOLD: 'bg-yellow-500 text-white',
+};
+
+const TIER_BENEFITS = {
+  BRONZE: { discount: '0%', multiplier: '1x', bonus: '50 pts' },
+  SILVER: { discount: '5%', multiplier: '1.25x', bonus: '100 pts' },
+  GOLD: { discount: '10%', multiplier: '1.5x', bonus: '200 pts' },
+};
 
 export default function POS() {
   const [cart, setCart] = useState<CartItem[]>([]);
@@ -23,6 +37,7 @@ export default function POS() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [isCustomerSearchOpen, setIsCustomerSearchOpen] = useState(false);
   const [completedTransaction, setCompletedTransaction] = useState<{
     id: string;
     receiptNumber: string;
@@ -269,27 +284,77 @@ export default function POS() {
       {/* Cart section */}
       <div className="w-96 bg-white border-l border-gray-200 flex flex-col">
         {/* Customer selection */}
-        <div className="p-4 border-b border-gray-200">
+        <div className="p-4 border-b border-gray-200 space-y-3">
           {selectedCustomer ? (
-            <div className="flex items-center justify-between p-2 bg-primary-50 rounded">
-              <div className="flex items-center">
-                <User className="h-5 w-5 text-primary mr-2" />
-                <div>
-                  <p className="font-medium text-gray-900">{selectedCustomer.name}</p>
-                  <p className="text-xs text-gray-600">{selectedCustomer.phone}</p>
+            <>
+              <div className="bg-primary-50 rounded-lg p-3">
+                <div className="flex items-center justify-between mb-3">
+                  <div className="flex items-center gap-2">
+                    <User className="h-5 w-5 text-primary" />
+                    <div>
+                      <p className="font-semibold text-gray-900">{selectedCustomer.name}</p>
+                      <p className="text-xs text-gray-600">{selectedCustomer.phone}</p>
+                    </div>
+                  </div>
+                  <button
+                    onClick={() => setSelectedCustomer(null)}
+                    className="text-xs text-red-600 hover:text-red-700 font-medium"
+                  >
+                    Remove
+                  </button>
+                </div>
+
+                {/* Loyalty tier badge and points */}
+                <div className="flex items-center gap-2 mb-3">
+                  <span
+                    className={`px-3 py-1 text-xs font-bold rounded ${
+                      TIER_COLORS[selectedCustomer.loyaltyTier]
+                    }`}
+                  >
+                    {selectedCustomer.loyaltyTier} TIER
+                  </span>
+                  <span className="flex items-center gap-1 text-sm font-semibold text-blue-700 bg-blue-50 px-2 py-1 rounded">
+                    <Award className="h-4 w-4" />
+                    {selectedCustomer.loyaltyPoints} points
+                  </span>
+                </div>
+
+                {/* Tier benefits */}
+                <div className="grid grid-cols-3 gap-2 text-xs">
+                  <div className="bg-white rounded px-2 py-1.5 text-center">
+                    <div className="text-gray-500 mb-0.5">Discount</div>
+                    <div className="font-semibold text-green-600">
+                      {TIER_BENEFITS[selectedCustomer.loyaltyTier].discount}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded px-2 py-1.5 text-center">
+                    <div className="text-gray-500 mb-0.5 flex items-center justify-center gap-1">
+                      <TrendingUp className="h-3 w-3" />
+                      Points
+                    </div>
+                    <div className="font-semibold text-purple-600">
+                      {TIER_BENEFITS[selectedCustomer.loyaltyTier].multiplier}
+                    </div>
+                  </div>
+                  <div className="bg-white rounded px-2 py-1.5 text-center">
+                    <div className="text-gray-500 mb-0.5">Birthday</div>
+                    <div className="font-semibold text-orange-600">
+                      {TIER_BENEFITS[selectedCustomer.loyaltyTier].bonus}
+                    </div>
+                  </div>
                 </div>
               </div>
-              <button
-                onClick={() => setSelectedCustomer(null)}
-                className="text-xs text-red-600 hover:text-red-700"
-              >
-                Remove
-              </button>
-            </div>
+
+              {/* Customer history */}
+              <CustomerHistory customer={selectedCustomer} />
+            </>
           ) : (
-            <button className="w-full btn btn-primary flex items-center justify-center">
+            <button
+              onClick={() => setIsCustomerSearchOpen(true)}
+              className="w-full btn btn-primary flex items-center justify-center"
+            >
               <User className="mr-2 h-5 w-5" />
-              Walk-in Customer
+              Select Customer
             </button>
           )}
         </div>
@@ -394,6 +459,16 @@ export default function POS() {
         isOpen={isScannerOpen}
         onClose={() => setIsScannerOpen(false)}
         onScan={handleBarcodeScanned}
+      />
+
+      {/* Customer Search Modal */}
+      <CustomerSearch
+        isOpen={isCustomerSearchOpen}
+        onClose={() => setIsCustomerSearchOpen(false)}
+        onSelectCustomer={(customer) => {
+          setSelectedCustomer(customer);
+          setIsCustomerSearchOpen(false);
+        }}
       />
     </div>
   );
