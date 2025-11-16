@@ -2,6 +2,7 @@ import { useState, useEffect } from 'react';
 import { Plus, Minus, Trash2, Search, User, Package, CheckCircle, Camera } from 'lucide-react';
 import { api } from '@/lib/api';
 import BarcodeScanner from '@/components/barcode/BarcodeScanner';
+import PrintReceipt from '@/components/receipts/PrintReceipt';
 import type { Product, Customer } from '@/types';
 
 interface CartItem {
@@ -22,6 +23,10 @@ export default function POS() {
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
   const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [completedTransaction, setCompletedTransaction] = useState<{
+    id: string;
+    receiptNumber: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -140,11 +145,17 @@ export default function POS() {
         })),
       };
 
-      await api.post('/transactions', transactionData);
+      const response = await api.post<{ data: { id: string; receiptNumber: string } }>('/transactions', transactionData);
+
+      // Store completed transaction for receipt printing
+      setCompletedTransaction({
+        id: response.data.data.id,
+        receiptNumber: response.data.data.receiptNumber,
+      });
 
       // Show success message
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
+      setTimeout(() => setShowSuccess(false), 5000);
 
       // Clear cart
       setCart([]);
@@ -167,11 +178,22 @@ export default function POS() {
 
   return (
     <div className="h-full flex">
-      {/* Success notification */}
-      {showSuccess && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center z-50">
-          <CheckCircle className="h-6 w-6 mr-3" />
-          <span className="font-semibold">Transaction completed successfully!</span>
+      {/* Success notification with print receipt */}
+      {showSuccess && completedTransaction && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md">
+          <div className="flex items-center mb-3">
+            <CheckCircle className="h-6 w-6 mr-3" />
+            <div>
+              <p className="font-semibold">Transaction completed successfully!</p>
+              <p className="text-sm opacity-90">Receipt #{completedTransaction.receiptNumber}</p>
+            </div>
+          </div>
+          <PrintReceipt
+            transactionId={completedTransaction.id}
+            receiptNumber={completedTransaction.receiptNumber}
+            onPrintComplete={() => setCompletedTransaction(null)}
+            className="mt-2"
+          />
         </div>
       )}
 
