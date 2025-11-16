@@ -94,6 +94,8 @@ model Product {
   retailPrice     Decimal         @db.Decimal(10, 2)
   wholesalePrice  Decimal         @db.Decimal(10, 2)
   minStockLevel   Int             @default(0)
+  currentStock    Decimal         @default(0) @db.Decimal(10, 3)
+  stockVersion    Int             @default(0) // For optimistic locking
   storageLocation StorageLocation
   shelfLifeDays   Int?
   supplier        String?
@@ -113,6 +115,7 @@ model Product {
   @@index([barcode])
   @@index([category])
   @@index([name])
+  @@index([currentStock]) // For low stock queries
   @@map("products")
 }
 

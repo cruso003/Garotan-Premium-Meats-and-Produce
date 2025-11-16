@@ -8,6 +8,7 @@ import reportRoutes from './report.routes';
 import userRoutes from './user.routes';
 import uploadRoutes from './upload.routes';
 import receiptRoutes from './receipt.routes';
+import stockSyncRoutes from './stock-sync.routes';
 // Import other route modules as they are created
 // import orderRoutes from './order.routes';
 
@@ -32,6 +33,7 @@ router.use('/reports', reportRoutes);
 router.use('/users', userRoutes);
 router.use('/upload', uploadRoutes);
 router.use('/receipts', receiptRoutes);
+router.use('/stock-sync', stockSyncRoutes);
 // router.use('/orders', orderRoutes);
 
 export default router;

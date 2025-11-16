@@ -1,6 +1,7 @@
 import { StockBatch, StockAdjustment, AdjustmentType, Prisma } from '@prisma/client';
 import prisma from '../config/database';
 import { ApiError } from '../middlewares/errorHandler';
+import { StockSyncService } from './stock-sync.service';
 
 export interface ReceiveStockDTO {
   productId: string;
@@ -62,26 +63,44 @@ export class InventoryService {
       throw new ApiError(404, 'Product not found');
     }
 
-    // Create stock batch
-    const stockBatch = await prisma.stockBatch.create({
-      data: {
-        productId,
-        quantity: new Prisma.Decimal(quantity),
-        expiryDate,
-        supplier: supplier || product.supplier || 'Unknown',
-        deliveryNote,
-      },
-    });
+    // Create stock batch and sync product stock in a transaction
+    const stockBatch = await prisma.$transaction(async (tx) => {
+      // Create stock batch
+      const newBatch = await tx.stockBatch.create({
+        data: {
+          productId,
+          quantity: new Prisma.Decimal(quantity),
+          expiryDate,
+          supplier: supplier || product.supplier || 'Unknown',
+          deliveryNote,
+        },
+      });
 
-    // Log activity
-    await prisma.activityLog.create({
-      data: {
-        userId,
-        action: 'CREATE',
-        entityType: 'StockBatch',
-        entityId: stockBatch.id,
-        details: `Received ${quantity} units of ${product.name}`,
-      },
+      // Update product stock
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          currentStock: {
+            increment: new Prisma.Decimal(quantity),
+          },
+          stockVersion: {
+            increment: 1,
+          },
+        },
+      });
+
+      // Log activity
+      await tx.activityLog.create({
+        data: {
+          userId,
+          action: 'CREATE',
+          entityType: 'StockBatch',
+          entityId: newBatch.id,
+          details: `Received ${quantity} units of ${product.name}`,
+        },
+      });
+
+      return newBatch;
     });
 
     return stockBatch;
@@ -163,6 +182,19 @@ export class InventoryService {
           },
         });
       }
+
+      // Update product stock (decrease for all adjustment types)
+      await tx.product.update({
+        where: { id: productId },
+        data: {
+          currentStock: {
+            decrement: new Prisma.Decimal(quantity),
+          },
+          stockVersion: {
+            increment: 1,
+          },
+        },
+      });
 
       // Log activity
       await tx.activityLog.create({
