@@ -1,6 +1,7 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, Trash2, Search, User, Package, CheckCircle } from 'lucide-react';
+import { Plus, Minus, Trash2, Search, User, Package, CheckCircle, Camera } from 'lucide-react';
 import { api } from '@/lib/api';
+import BarcodeScanner from '@/components/barcode/BarcodeScanner';
 import type { Product, Customer } from '@/types';
 
 interface CartItem {
@@ -20,6 +21,7 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
 
   useEffect(() => {
     fetchProducts();
@@ -41,11 +43,33 @@ export default function POS() {
   const fetchProducts = async () => {
     try {
       const response = await api.get<{ data: Product[] }>('/products?limit=100');
-      const activeProducts = response.data.filter((p) => p.isActive);
+      const activeProducts = response.data.data.filter((p: Product) => p.isActive);
       setProducts(activeProducts);
       setFilteredProducts(activeProducts.slice(0, 20));
     } catch (error) {
       console.error('Failed to fetch products:', error);
+    }
+  };
+
+  const handleBarcodeScanned = (barcode: string) => {
+    // Find product by barcode
+    const product = products.find(
+      (p) => p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase()
+    );
+
+    if (product) {
+      addToCart(product);
+    } else {
+      // If not found by barcode, try SKU
+      const productBySku = products.find(
+        (p) => p.sku && p.sku.toLowerCase() === barcode.toLowerCase()
+      );
+
+      if (productBySku) {
+        addToCart(productBySku);
+      } else {
+        alert(`Product not found for barcode: ${barcode}`);
+      }
     }
   };
 
@@ -156,16 +180,26 @@ export default function POS() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Point of Sale</h1>
 
-          {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search products by name, SKU, or barcode..."
-              className="input w-full pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          {/* Search bar with scanner button */}
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search products by name, SKU, or barcode..."
+                className="input w-full pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => setIsScannerOpen(true)}
+              className="btn btn-primary flex items-center px-4"
+              title="Scan barcode with camera"
+            >
+              <Camera className="h-5 w-5 mr-2" />
+              Scan
+            </button>
           </div>
         </div>
 
@@ -324,6 +358,13 @@ export default function POS() {
           </button>
         </div>
       </div>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScanner
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScan={handleBarcodeScanned}
+      />
     </div>
   );
 }

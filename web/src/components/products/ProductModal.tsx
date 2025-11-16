@@ -15,7 +15,7 @@ interface ProductFormData {
   wholesalePrice?: number;
   minStockLevel: number;
   storageLocation: StorageLocation;
-  shelfLife?: number;
+  shelfLifeDays?: number;
   isActive: boolean;
 }
 
@@ -40,7 +40,21 @@ export default function ProductModal({
     reset,
     formState: { errors },
   } = useForm<ProductFormData>({
-    defaultValues: product || {
+    defaultValues: product ? {
+      name: product.name,
+      description: product.description || undefined,
+      sku: product.sku,
+      barcode: product.barcode || undefined,
+      category: product.category,
+      unitOfMeasure: product.unitOfMeasure,
+      costPrice: parseFloat(product.costPrice),
+      retailPrice: parseFloat(product.retailPrice),
+      wholesalePrice: product.wholesalePrice ? parseFloat(product.wholesalePrice) : undefined,
+      minStockLevel: product.minStockLevel,
+      storageLocation: product.storageLocation,
+      shelfLifeDays: product.shelfLifeDays || undefined,
+      isActive: product.isActive,
+    } : {
       isActive: true,
       minStockLevel: 10,
     },
@@ -49,12 +63,19 @@ export default function ProductModal({
   useEffect(() => {
     if (product) {
       reset({
-        ...product,
+        name: product.name,
+        description: product.description || undefined,
+        sku: product.sku,
+        barcode: product.barcode || undefined,
+        category: product.category,
+        unitOfMeasure: product.unitOfMeasure,
         costPrice: parseFloat(product.costPrice),
         retailPrice: parseFloat(product.retailPrice),
-        wholesalePrice: product.wholesalePrice
-          ? parseFloat(product.wholesalePrice)
-          : undefined,
+        wholesalePrice: product.wholesalePrice ? parseFloat(product.wholesalePrice) : undefined,
+        minStockLevel: product.minStockLevel,
+        storageLocation: product.storageLocation,
+        shelfLifeDays: product.shelfLifeDays || undefined,
+        isActive: product.isActive,
       });
     } else {
       reset({
@@ -274,7 +295,7 @@ export default function ProductModal({
               <input
                 type="number"
                 className="input w-full"
-                {...register('shelfLife', {
+                {...register('shelfLifeDays', {
                   min: { value: 1, message: 'Must be at least 1' },
                 })}
               />

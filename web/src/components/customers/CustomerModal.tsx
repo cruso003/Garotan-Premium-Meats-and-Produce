@@ -37,10 +37,20 @@ export default function CustomerModal({
     watch,
     formState: { errors },
   } = useForm<CustomerFormData>({
-    defaultValues: customer || {
+    defaultValues: customer ? {
+      name: customer.name,
+      phone: customer.phone,
+      email: customer.email || undefined,
+      address: customer.address || undefined,
+      customerType: customer.customerType,
+      loyaltyTier: customer.loyaltyTier,
+      loyaltyPoints: customer.loyaltyPoints,
+      creditLimit: customer.creditLimit ? parseFloat(customer.creditLimit) : undefined,
+      isActive: customer.isActive,
+    } : {
       isActive: true,
-      customerType: 'RETAIL',
-      loyaltyTier: 'BRONZE',
+      customerType: 'RETAIL' as CustomerType,
+      loyaltyTier: 'BRONZE' as LoyaltyTier,
       loyaltyPoints: 0,
     },
   });
@@ -50,8 +60,15 @@ export default function CustomerModal({
   useEffect(() => {
     if (customer) {
       reset({
-        ...customer,
+        name: customer.name,
+        phone: customer.phone,
+        email: customer.email || undefined,
+        address: customer.address || undefined,
+        customerType: customer.customerType,
+        loyaltyTier: customer.loyaltyTier,
+        loyaltyPoints: customer.loyaltyPoints,
         creditLimit: customer.creditLimit ? parseFloat(customer.creditLimit) : undefined,
+        isActive: customer.isActive,
       });
     } else {
       reset({
