@@ -212,8 +212,16 @@ export default function POS() {
                 onClick={() => addToCart(product)}
                 className="card hover:shadow-lg transition-shadow text-left"
               >
-                <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
-                  <Package className="h-12 w-12 text-gray-400" />
+                <div className="aspect-square bg-gray-200 rounded-lg mb-3 overflow-hidden flex items-center justify-center">
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="h-12 w-12 text-gray-400" />
+                  )}
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1 truncate">
                   {product.name}
