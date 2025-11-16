@@ -16,6 +16,8 @@ import {
   History,
 } from 'lucide-react';
 import { useAuthStore } from '@/store/auth';
+import CurrencySwitcher from '@/components/currency/CurrencySwitcher';
+import NotificationCenter from '@/components/notifications/NotificationCenter';
 
 const navigation = [
   { name: 'Dashboard', href: '/dashboard', icon: LayoutDashboard },
@@ -88,9 +90,15 @@ export default function Layout() {
                 </div>
               </div>
             </div>
-            <div className="ml-4 flex items-center md:ml-6">
+            <div className="ml-4 flex items-center md:ml-6 gap-4">
+              {/* Currency Switcher */}
+              <CurrencySwitcher />
+
+              {/* Notifications */}
+              <NotificationCenter />
+
               {/* Profile dropdown */}
-              <div className="ml-3 relative">
+              <div className="relative">
                 <button
                   className="max-w-xs bg-white flex items-center text-sm rounded-full focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                   onClick={() => setProfileMenuOpen(!profileMenuOpen)}

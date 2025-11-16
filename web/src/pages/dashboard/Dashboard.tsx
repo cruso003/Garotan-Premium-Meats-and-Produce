@@ -7,28 +7,49 @@ import {
   AlertTriangle,
   Package,
   Clock,
+  RefreshCw,
+  Users,
+  Award,
 } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useCurrencyFormatter } from '@/lib/currency';
 import type { DashboardKPIs } from '@/types';
 
 export default function Dashboard() {
+  const { format: formatCurrency } = useCurrencyFormatter();
   const [kpis, setKpis] = useState<DashboardKPIs | null>(null);
   const [loading, setLoading] = useState(true);
+  const [refreshing, setRefreshing] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [lastUpdated, setLastUpdated] = useState<Date | null>(null);
 
   useEffect(() => {
     fetchDashboardData();
+
+    // Auto-refresh every 30 seconds
+    const interval = setInterval(() => {
+      fetchDashboardData(true);
+    }, 30000);
+
+    return () => clearInterval(interval);
   }, []);
 
-  const fetchDashboardData = async () => {
+  const fetchDashboardData = async (isRefresh = false) => {
     try {
-      setLoading(true);
-      const response = await api.get<DashboardKPIs>('/reports/dashboard');
-      setKpis(response.data);
+      if (isRefresh) {
+        setRefreshing(true);
+      } else {
+        setLoading(true);
+      }
+      const response = await api.get<{ success: boolean; data: DashboardKPIs }>('/reports/dashboard');
+      setKpis(response.data?.data || response.data as any);
+      setLastUpdated(new Date());
+      setError(null);
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to load dashboard data');
     } finally {
       setLoading(false);
+      setRefreshing(false);
     }
   };
 
@@ -50,22 +71,32 @@ export default function Dashboard() {
     );
   }
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-LR', {
-      style: 'currency',
-      currency: 'LRD',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
   return (
     <div className="p-8">
       {/* Page header */}
-      <div className="mb-8">
-        <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
-        <p className="mt-2 text-gray-600">
-          Welcome back! Here's what's happening today.
-        </p>
+      <div className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold text-gray-900">Dashboard</h1>
+          <p className="mt-2 text-gray-600">
+            Welcome back! Here's what's happening today.
+          </p>
+        </div>
+        <div className="flex items-center gap-3">
+          {lastUpdated && (
+            <span className="text-sm text-gray-500">
+              Updated {lastUpdated.toLocaleTimeString()}
+            </span>
+          )}
+          <button
+            onClick={() => fetchDashboardData(true)}
+            disabled={refreshing}
+            className="btn btn-secondary flex items-center gap-2"
+            title="Refresh data"
+          >
+            <RefreshCw className={`h-4 w-4 ${refreshing ? 'animate-spin' : ''}`} />
+            Refresh
+          </button>
+        </div>
       </div>
 
       {/* Today's KPIs */}

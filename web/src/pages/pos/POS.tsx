@@ -1,11 +1,12 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, Trash2, Search, User, Package, CheckCircle, Camera, Award, TrendingUp } from 'lucide-react';
+import { Plus, Minus, Trash2, Search, User, Package, CheckCircle, Camera, Award, TrendingUp, Filter } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useCurrencyFormatter } from '@/lib/currency';
 import BarcodeScanner from '@/components/barcode/BarcodeScanner';
 import PrintReceipt from '@/components/receipts/PrintReceipt';
 import CustomerSearch from '@/components/pos/CustomerSearch';
 import CustomerHistory from '@/components/pos/CustomerHistory';
-import type { Product, Customer, LoyaltyTier } from '@/types';
+import type { Product, Customer, LoyaltyTier, ProductCategory } from '@/types';
 
 interface CartItem {
   productId: string;
@@ -27,9 +28,21 @@ const TIER_BENEFITS = {
   GOLD: { discount: '10%', multiplier: '1.5x', bonus: '200 pts' },
 };
 
+const CATEGORIES: { value: string; label: string }[] = [
+  { value: '', label: 'All Categories' },
+  { value: 'CHICKEN', label: 'Chicken' },
+  { value: 'BEEF', label: 'Beef' },
+  { value: 'PORK', label: 'Pork' },
+  { value: 'PRODUCE', label: 'Produce' },
+  { value: 'VALUE_ADDED', label: 'Value Added' },
+  { value: 'OTHER', label: 'Other' },
+];
+
 export default function POS() {
+  const { format: formatCurrency } = useCurrencyFormatter();
   const [cart, setCart] = useState<CartItem[]>([]);
   const [searchQuery, setSearchQuery] = useState('');
+  const [selectedCategory, setSelectedCategory] = useState<string>('');
   const [products, setProducts] = useState<Product[]>([]);
   const [filteredProducts, setFilteredProducts] = useState<Product[]>([]);
   const [selectedCustomer, setSelectedCustomer] = useState<Customer | null>(null);
@@ -48,26 +61,36 @@ export default function POS() {
   }, []);
 
   useEffect(() => {
+    let filtered = products;
+
+    // Filter by category
+    if (selectedCategory) {
+      filtered = filtered.filter((p) => p.category === selectedCategory);
+    }
+
+    // Filter by search query
     if (searchQuery.trim()) {
-      const filtered = products.filter((p) =>
+      filtered = filtered.filter((p) =>
         p.name.toLowerCase().includes(searchQuery.toLowerCase()) ||
         p.sku.toLowerCase().includes(searchQuery.toLowerCase()) ||
         (p.barcode && p.barcode.toLowerCase().includes(searchQuery.toLowerCase()))
       );
-      setFilteredProducts(filtered.slice(0, 20));
-    } else {
-      setFilteredProducts(products.slice(0, 20));
     }
-  }, [searchQuery, products]);
+
+    setFilteredProducts(filtered.slice(0, 20));
+  }, [searchQuery, selectedCategory, products]);
 
   const fetchProducts = async () => {
     try {
       const response = await api.get<{ data: Product[] }>('/products?limit=100');
-      const activeProducts = response.data.data.filter((p: Product) => p.isActive);
+      const productData = response.data?.data || [];
+      const activeProducts = productData.filter((p: Product) => p.isActive);
       setProducts(activeProducts);
       setFilteredProducts(activeProducts.slice(0, 20));
     } catch (error) {
       console.error('Failed to fetch products:', error);
+      setProducts([]);
+      setFilteredProducts([]);
     }
   };
 
@@ -183,14 +206,6 @@ export default function POS() {
     }
   };
 
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-LR', {
-      style: 'currency',
-      currency: 'LRD',
-      minimumFractionDigits: 0,
-    }).format(amount);
-  };
-
   return (
     <div className="h-full flex">
       {/* Success notification with print receipt */}
@@ -217,8 +232,8 @@ export default function POS() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Point of Sale</h1>
 
-          {/* Search bar with scanner button */}
-          <div className="flex gap-3">
+          {/* Search bar with filters and scanner button */}
+          <div className="flex gap-3 mb-4">
             <div className="flex-1 relative">
               <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
               <input
@@ -228,6 +243,20 @@ export default function POS() {
                 value={searchQuery}
                 onChange={(e) => setSearchQuery(e.target.value)}
               />
+            </div>
+            <div className="relative min-w-[180px]">
+              <Filter className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <select
+                value={selectedCategory}
+                onChange={(e) => setSelectedCategory(e.target.value)}
+                className="input w-full pl-10 appearance-none"
+              >
+                {CATEGORIES.map((cat) => (
+                  <option key={cat.value} value={cat.value}>
+                    {cat.label}
+                  </option>
+                ))}
+              </select>
             </div>
             <button
               onClick={() => setIsScannerOpen(true)}

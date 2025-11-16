@@ -2,6 +2,7 @@ import { useEffect, useState } from 'react';
 import { BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer, LineChart, Line, PieChart, Pie, Cell } from 'recharts';
 import { Calendar, Download, TrendingUp, DollarSign } from 'lucide-react';
 import { api } from '@/lib/api';
+import { useCurrencyFormatter } from '@/lib/currency';
 
 interface SalesTrend {
   date: string;
@@ -16,6 +17,7 @@ interface CategorySales {
 }
 
 export default function Reports() {
+  const { format: formatCurrency } = useCurrencyFormatter();
   const [loading, setLoading] = useState(true);
   const [period, setPeriod] = useState<'week' | 'month' | 'year'>('month');
   const [salesTrends, setSalesTrends] = useState<SalesTrend[]>([]);
@@ -31,31 +33,28 @@ export default function Reports() {
     try {
       setLoading(true);
       const [trendsRes, categoryRes] = await Promise.all([
-        api.get<SalesTrend[]>(`/reports/sales-trends?period=${period}`),
-        api.get<CategorySales[]>('/reports/sales-by-category'),
+        api.get<{ success: boolean; data: SalesTrend[] }>(`/reports/sales-trends?period=${period}`),
+        api.get<{ success: boolean; data: CategorySales[] }>('/reports/sales-by-category'),
       ]);
 
-      setSalesTrends(trendsRes.data as SalesTrend[]);
-      setCategorySales(categoryRes.data as CategorySales[]);
+      const trends = trendsRes.data?.data || [];
+      const categories = categoryRes.data?.data || [];
 
-      // Calculate totals
-      const revenue = salesTrends.reduce((sum, item) => sum + item.revenue, 0);
-      const transactions = salesTrends.reduce((sum, item) => sum + item.transactions, 0);
+      setSalesTrends(trends);
+      setCategorySales(categories);
+
+      // Calculate totals from trends data
+      const revenue = trends.reduce((sum, item) => sum + (item.revenue || 0), 0);
+      const transactions = trends.reduce((sum, item) => sum + (item.transactions || 0), 0);
       setTotalRevenue(revenue);
       setTotalTransactions(transactions);
     } catch (error) {
       console.error('Failed to fetch reports:', error);
+      setSalesTrends([]);
+      setCategorySales([]);
     } finally {
       setLoading(false);
     }
-  };
-
-  const formatCurrency = (amount: number) => {
-    return new Intl.NumberFormat('en-LR', {
-      style: 'currency',
-      currency: 'LRD',
-      minimumFractionDigits: 0,
-    }).format(amount);
   };
 
   const COLORS = ['#2D5016', '#0077BE', '#FF6B35', '#4A7A2C', '#1E90D5'];

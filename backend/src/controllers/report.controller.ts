@@ -93,15 +93,22 @@ export class ReportController {
    * Get sales by category
    */
   getSalesByCategory = asyncHandler(async (req: Request, res: Response) => {
-    const { startDate, endDate } = req.query;
+    let startDate: Date;
+    let endDate: Date;
 
-    if (!startDate || !endDate) {
-      throw new ApiError(400, 'Start date and end date are required');
+    // Use provided dates or default to last 30 days
+    if (req.query.startDate && req.query.endDate) {
+      startDate = new Date(req.query.startDate as string);
+      endDate = new Date(req.query.endDate as string);
+    } else {
+      endDate = new Date();
+      startDate = new Date();
+      startDate.setDate(endDate.getDate() - 30);
     }
 
     const sales = await reportService.getSalesByCategory(
-      new Date(startDate as string),
-      new Date(endDate as string)
+      startDate,
+      endDate
     );
 
     res.status(200).json({
@@ -124,6 +131,43 @@ export class ReportController {
     const sales = await reportService.getSalesByPaymentMethod(
       new Date(startDate as string),
       new Date(endDate as string)
+    );
+
+    res.status(200).json({
+      success: true,
+      data: sales,
+    });
+  });
+
+  /**
+   * GET /api/reports/sales-trends
+   * Get sales trends for a period (week, month, year)
+   */
+  getSalesTrends = asyncHandler(async (req: Request, res: Response) => {
+    const period = (req.query.period as string) || 'month';
+
+    // Calculate date range based on period
+    const endDate = new Date();
+    const startDate = new Date();
+
+    switch (period) {
+      case 'week':
+        startDate.setDate(endDate.getDate() - 7);
+        break;
+      case 'month':
+        startDate.setDate(endDate.getDate() - 30);
+        break;
+      case 'year':
+        startDate.setFullYear(endDate.getFullYear() - 1);
+        break;
+      default:
+        startDate.setDate(endDate.getDate() - 30);
+    }
+
+    const sales = await reportService.getSalesByPeriod(
+      startDate,
+      endDate,
+      period === 'year' ? 'month' : 'day'
     );
 
     res.status(200).json({

@@ -70,4 +70,14 @@ router.get(
   reportController.getSalesByPaymentMethod
 );
 
+/**
+ * GET /api/reports/sales-trends
+ * Get sales trends for charting
+ */
+router.get(
+  '/sales-trends',
+  authorize(...reportRoles),
+  reportController.getSalesTrends
+);
+
 export default router;

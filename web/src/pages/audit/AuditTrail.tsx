@@ -65,15 +65,19 @@ export default function AuditTrail() {
       });
 
       const response = await api.get<{
+        success: boolean;
         data: AuditLog[];
         pagination: { total: number; totalPages: number };
       }>(`/audit/logs?${params}`);
 
-      setLogs(response.data.data);
-      setTotal(response.data.pagination.total);
-      setTotalPages(response.data.pagination.totalPages);
+      setLogs(response.data?.data || []);
+      setTotal(response.data?.pagination?.total || 0);
+      setTotalPages(response.data?.pagination?.totalPages || 1);
     } catch (error) {
       console.error('Failed to fetch audit logs:', error);
+      setLogs([]);
+      setTotal(0);
+      setTotalPages(1);
     } finally {
       setIsLoading(false);
     }
