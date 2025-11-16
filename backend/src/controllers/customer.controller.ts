@@ -3,6 +3,7 @@ import customerService from '../services/customer.service';
 import { asyncHandler } from '../middlewares/errorHandler';
 import { ApiError } from '../middlewares/errorHandler';
 import { CustomerType, LoyaltyTier } from '@prisma/client';
+import AuditService from '../services/audit.service';
 
 export class CustomerController {
   /**
@@ -98,6 +99,15 @@ export class CustomerController {
   createCustomer = asyncHandler(async (req: Request, res: Response) => {
     const customer = await customerService.createCustomer(req.body);
 
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'CREATE',
+      'Customer',
+      customer.id,
+      `Created customer: ${customer.name} (${customer.phone})`
+    );
+
     res.status(201).json({
       success: true,
       message: 'Customer created successfully',
@@ -114,6 +124,15 @@ export class CustomerController {
 
     const customer = await customerService.updateCustomer(id, req.body);
 
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'UPDATE',
+      'Customer',
+      customer.id,
+      `Updated customer: ${customer.name} (${customer.phone})`
+    );
+
     res.status(200).json({
       success: true,
       message: 'Customer updated successfully',
@@ -129,6 +148,15 @@ export class CustomerController {
     const { id } = req.params;
 
     await customerService.deleteCustomer(id);
+
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'DELETE',
+      'Customer',
+      id,
+      'Deactivated customer'
+    );
 
     res.status(200).json({
       success: true,

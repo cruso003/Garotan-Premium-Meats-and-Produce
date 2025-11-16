@@ -4,6 +4,7 @@ import { asyncHandler } from '../middlewares/errorHandler';
 import { ApiError } from '../middlewares/errorHandler';
 import { AdjustmentType } from '@prisma/client';
 import { retryWithBackoff } from '../utils/retry';
+import AuditService from '../services/audit.service';
 
 export class InventoryController {
   /**
@@ -30,6 +31,15 @@ export class InventoryController {
         backoffMultiplier: 2,
       },
       'Stock Receipt'
+    );
+
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'RECEIVE',
+      'Inventory',
+      stockBatch.id,
+      `Received stock: Product ID ${stockBatch.productId}, Qty ${stockBatch.quantity}`
     );
 
     res.status(201).json({
@@ -63,6 +73,15 @@ export class InventoryController {
         backoffMultiplier: 2,
       },
       'Stock Adjustment'
+    );
+
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'ADJUST',
+      'Inventory',
+      adjustment.id,
+      `Stock adjustment: ${adjustment.type}, Qty ${adjustment.quantity}, Reason: ${adjustment.reason || 'N/A'}`
     );
 
     res.status(201).json({

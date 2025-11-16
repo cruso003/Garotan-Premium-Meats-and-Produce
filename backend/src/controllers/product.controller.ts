@@ -3,6 +3,7 @@ import productService from '../services/product.service';
 import { asyncHandler } from '../middlewares/errorHandler';
 import { ApiError } from '../middlewares/errorHandler';
 import { ProductCategory, UnitOfMeasure, StorageLocation } from '@prisma/client';
+import AuditService from '../services/audit.service';
 
 export class ProductController {
   /**
@@ -102,6 +103,15 @@ export class ProductController {
   createProduct = asyncHandler(async (req: Request, res: Response) => {
     const product = await productService.createProduct(req.body);
 
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'CREATE',
+      'Product',
+      product.id,
+      `Created product: ${product.name} (SKU: ${product.sku})`
+    );
+
     res.status(201).json({
       success: true,
       message: 'Product created successfully',
@@ -118,6 +128,15 @@ export class ProductController {
 
     const product = await productService.updateProduct(id, req.body);
 
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'UPDATE',
+      'Product',
+      product.id,
+      `Updated product: ${product.name} (SKU: ${product.sku})`
+    );
+
     res.status(200).json({
       success: true,
       message: 'Product updated successfully',
@@ -133,6 +152,15 @@ export class ProductController {
     const { id } = req.params;
 
     await productService.deleteProduct(id);
+
+    // Audit log
+    await AuditService.log(
+      req.user!.userId,
+      'DELETE',
+      'Product',
+      id,
+      'Deactivated product'
+    );
 
     res.status(200).json({
       success: true,
