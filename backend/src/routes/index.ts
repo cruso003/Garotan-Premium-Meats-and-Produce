@@ -1,13 +1,13 @@
 import { Router } from 'express';
 import authRoutes from './auth.routes';
 import productRoutes from './product.routes';
+import transactionRoutes from './transaction.routes';
+import customerRoutes from './customer.routes';
+import inventoryRoutes from './inventory.routes';
+import reportRoutes from './report.routes';
 // Import other route modules as they are created
-// import inventoryRoutes from './inventory.routes';
-// import customerRoutes from './customer.routes';
-// import transactionRoutes from './transaction.routes';
 // import orderRoutes from './order.routes';
 // import userRoutes from './user.routes';
-// import reportRoutes from './report.routes';
 
 const router = Router();
 
@@ -23,11 +23,11 @@ router.get('/health', (_req, res) => {
 // Mount routes
 router.use('/auth', authRoutes);
 router.use('/products', productRoutes);
-// router.use('/inventory', inventoryRoutes);
-// router.use('/customers', customerRoutes);
-// router.use('/transactions', transactionRoutes);
+router.use('/transactions', transactionRoutes);
+router.use('/customers', customerRoutes);
+router.use('/inventory', inventoryRoutes);
+router.use('/reports', reportRoutes);
 // router.use('/orders', orderRoutes);
 // router.use('/users', userRoutes);
-// router.use('/reports', reportRoutes);
 
 export default router;
