@@ -5,9 +5,9 @@ import transactionRoutes from './transaction.routes';
 import customerRoutes from './customer.routes';
 import inventoryRoutes from './inventory.routes';
 import reportRoutes from './report.routes';
+import userRoutes from './user.routes';
 // Import other route modules as they are created
 // import orderRoutes from './order.routes';
-// import userRoutes from './user.routes';
 
 const router = Router();
 
@@ -27,7 +27,7 @@ router.use('/transactions', transactionRoutes);
 router.use('/customers', customerRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/reports', reportRoutes);
+router.use('/users', userRoutes);
 // router.use('/orders', orderRoutes);
-// router.use('/users', userRoutes);
 
 export default router;
