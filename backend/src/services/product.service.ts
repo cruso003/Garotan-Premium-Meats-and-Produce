@@ -7,6 +7,7 @@ import {
 } from '@prisma/client';
 import prisma from '../config/database';
 import { ApiError } from '../middlewares/errorHandler';
+import AuditService from './audit.service';
 
 export interface CreateProductDTO {
   sku: string;

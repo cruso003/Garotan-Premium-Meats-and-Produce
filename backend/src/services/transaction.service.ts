@@ -2,6 +2,7 @@ import { Prisma, Transaction, PaymentMethod, PaymentStatus } from '@prisma/clien
 import prisma from '../config/database';
 import { ApiError } from '../middlewares/errorHandler';
 import { StockSyncService } from './stock-sync.service';
+import { LoyaltyService } from './loyalty.service';
 
 export interface TransactionItemDTO {
   productId: string;
@@ -68,6 +69,7 @@ export class TransactionService {
 
     // Validate customer if provided
     let customer = null;
+    let birthdayBonusAwarded = 0;
     if (customerId) {
       customer = await prisma.customer.findUnique({
         where: { id: customerId },
@@ -75,6 +77,15 @@ export class TransactionService {
 
       if (!customer) {
         throw new ApiError(404, 'Customer not found');
+      }
+
+      // Check and award birthday bonus
+      birthdayBonusAwarded = await LoyaltyService.awardBirthdayBonus(customerId);
+      if (birthdayBonusAwarded > 0) {
+        // Refresh customer to get updated points
+        customer = await prisma.customer.findUnique({
+          where: { id: customerId },
+        });
       }
 
       // Validate loyalty points redemption
@@ -87,11 +98,19 @@ export class TransactionService {
       throw new ApiError(400, 'Customer is required to redeem loyalty points');
     }
 
-    // Fetch products and validate stock
+    // Fetch products and validate stock (with optimistic locking check)
     const productIds = items.map((item) => item.productId);
     const products = await prisma.product.findMany({
       where: { id: { in: productIds }, isActive: true },
-      include: {
+      select: {
+        id: true,
+        name: true,
+        sku: true,
+        retailPrice: true,
+        wholesalePrice: true,
+        currentStock: true,
+        stockVersion: true,
+        minStockLevel: true,
         stockBatches: {
           where: {
             quantity: { gt: 0 },
@@ -105,6 +124,34 @@ export class TransactionService {
 
     if (products.length !== productIds.length) {
       throw new ApiError(400, 'One or more products not found or inactive');
+    }
+
+    // Enhanced stock validation using cached currentStock
+    const stockValidationErrors: string[] = [];
+    for (const item of items) {
+      const product = products.find((p) => p.id === item.productId);
+      if (!product) continue;
+
+      const currentStock = Number(product.currentStock);
+
+      // Check against cached stock first (fast)
+      if (currentStock < item.quantity) {
+        stockValidationErrors.push(
+          `${product.name}: Insufficient stock. Available: ${currentStock.toFixed(2)}, Requested: ${item.quantity}`
+        );
+      }
+
+      // Warn if approaching minimum stock level
+      if (currentStock - item.quantity <= product.minStockLevel) {
+        console.warn(
+          `Warning: ${product.name} will be at or below minimum stock level after this transaction. ` +
+          `Current: ${currentStock}, After Sale: ${currentStock - item.quantity}, Minimum: ${product.minStockLevel}`
+        );
+      }
+    }
+
+    if (stockValidationErrors.length > 0) {
+      throw new ApiError(400, `Stock validation failed:\n${stockValidationErrors.join('\n')}`);
     }
 
     // Calculate totals and prepare transaction items
@@ -174,18 +221,25 @@ export class TransactionService {
       subtotal += itemTotal;
     }
 
+    // Calculate tier discount (if customer has tier benefits)
+    const tierDiscount = customer
+      ? LoyaltyService.calculateTierDiscount(subtotal, customer.loyaltyTier)
+      : 0;
+
     // Calculate loyalty points redemption value (1 point = $1)
     const loyaltyDiscount = loyaltyPointsRedeemed;
 
-    // Calculate total
-    const total = subtotal - discount - loyaltyDiscount;
+    // Calculate total (subtotal - discounts)
+    const total = subtotal - discount - tierDiscount - loyaltyDiscount;
 
     if (total < 0) {
       throw new ApiError(400, 'Total cannot be negative');
     }
 
-    // Calculate loyalty points earned (1 point per $1 spent)
-    const loyaltyPointsEarned = customer ? Math.floor(total) : 0;
+    // Calculate loyalty points earned (with tier multiplier)
+    const loyaltyPointsEarned = customer
+      ? LoyaltyService.calculatePointsEarned(total, customer.loyaltyTier)
+      : 0;
 
     // Generate transaction number
     const transactionNumber = `TXN-${Date.now()}-${Math.random().toString(36).substring(7).toUpperCase()}`;
@@ -199,7 +253,7 @@ export class TransactionService {
           customerId: customerId || null,
           cashierId,
           subtotal: new Prisma.Decimal(subtotal),
-          discount: new Prisma.Decimal(discount + loyaltyDiscount),
+          discount: new Prisma.Decimal(discount + tierDiscount + loyaltyDiscount),
           tax: new Prisma.Decimal(0), // No tax for now
           total: new Prisma.Decimal(total),
           paymentMethod,
@@ -299,6 +353,30 @@ export class TransactionService {
               description: 'Points redeemed for discount',
             },
           });
+        }
+
+        // Check for tier upgrade after points are added
+        const updatedCustomer = await tx.customer.findUnique({
+          where: { id: customerId },
+          select: { loyaltyPoints: true, loyaltyTier: true },
+        });
+
+        if (updatedCustomer) {
+          const newTier = LoyaltyService.checkTierUpgrade(
+            updatedCustomer.loyaltyPoints,
+            updatedCustomer.loyaltyTier
+          );
+
+          if (newTier) {
+            await tx.customer.update({
+              where: { id: customerId },
+              data: { loyaltyTier: newTier },
+            });
+
+            console.log(
+              `Customer ${customerId} upgraded from ${updatedCustomer.loyaltyTier} to ${newTier}`
+            );
+          }
         }
       }
 
