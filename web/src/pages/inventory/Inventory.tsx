@@ -1,5 +1,5 @@
 import { useEffect, useState } from 'react';
-import { Plus, AlertTriangle, Package, TrendingDown, Search } from 'lucide-react';
+import { Plus, AlertTriangle, Package, TrendingDown } from 'lucide-react';
 import { api } from '@/lib/api';
 import type { Product } from '@/types';
 
@@ -53,7 +53,8 @@ export default function Inventory() {
 
   const getDaysUntilExpiry = (expiryDate: string) => {
     const days = Math.ceil(
-      (new Date(expiryDate).getTime() - new Date().getTime()) / (1000 * 60 * 60 * 24)
+      (new Date(expiryDate).getTime() - new Date().getTime()) /
+        (1000 * 60 * 60 * 24)
     );
     return days;
   };
@@ -63,7 +64,9 @@ export default function Inventory() {
       {/* Header */}
       <div className="flex justify-between items-center mb-6">
         <div>
-          <h1 className="text-3xl font-bold text-gray-900">Inventory Management</h1>
+          <h1 className="text-3xl font-bold text-gray-900">
+            Inventory Management
+          </h1>
           <p className="mt-2 text-gray-600">
             Track stock levels and manage inventory
           </p>
@@ -82,7 +85,9 @@ export default function Inventory() {
               <AlertTriangle className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Low Stock Items</p>
+              <p className="text-sm font-medium text-gray-600">
+                Low Stock Items
+              </p>
               <p className="text-2xl font-bold text-gray-900">
                 {lowStockProducts.length}
               </p>
@@ -110,7 +115,9 @@ export default function Inventory() {
               <Package className="h-6 w-6" />
             </div>
             <div className="ml-4">
-              <p className="text-sm font-medium text-gray-600">Total Products</p>
+              <p className="text-sm font-medium text-gray-600">
+                Total Products
+              </p>
               <p className="text-2xl font-bold text-gray-900">--</p>
             </div>
           </div>
@@ -126,7 +133,9 @@ export default function Inventory() {
           {/* Low Stock Products */}
           <div className="card">
             <div className="flex items-center justify-between mb-4">
-              <h3 className="text-lg font-semibold text-gray-900">Low Stock Products</h3>
+              <h3 className="text-lg font-semibold text-gray-900">
+                Low Stock Products
+              </h3>
               <AlertTriangle className="h-5 w-5 text-red-600" />
             </div>
             {lowStockProducts.length === 0 ? (
@@ -141,8 +150,12 @@ export default function Inventory() {
                     className="flex items-center justify-between p-3 bg-red-50 rounded-lg border border-red-100"
                   >
                     <div>
-                      <p className="font-semibold text-gray-900">{product.name}</p>
-                      <p className="text-sm text-gray-600">SKU: {product.sku}</p>
+                      <p className="font-semibold text-gray-900">
+                        {product.name}
+                      </p>
+                      <p className="text-sm text-gray-600">
+                        SKU: {product.sku}
+                      </p>
                     </div>
                     <div className="text-right">
                       <p className="text-lg font-bold text-red-600">

@@ -24,8 +24,26 @@ export default function Products() {
       const response = await api.get<PaginatedResponse<Product>>(
         `/products?page=${page}&limit=20&search=${searchQuery}`
       );
-      setProducts(response.data);
-      setTotalPages(response.pagination.totalPages);
+      // Debug: log the shape we received so we can diagnose runtime mismatches
+      // eslint-disable-next-line no-console
+      console.debug('products response', response);
+
+      // The API client may return either:
+      // 1) ApiResponse<PaginatedResponse<T>> => { success, message?, data: { data: T[], pagination } }
+      // 2) PaginatedResponse<T> directly => { success, data: T[], pagination }
+      // 3) or even the items array directly (T[]). Normalize all cases.
+      const raw: any =
+        response && (response as any).data ? (response as any).data : response;
+
+      const items: Product[] = Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw)
+          ? raw
+          : [];
+      const pages = raw?.pagination?.totalPages ?? 1;
+
+      setProducts(items);
+      setTotalPages(pages);
     } catch (error) {
       console.error('Failed to fetch products:', error);
     } finally {

@@ -24,8 +24,26 @@ export default function Customers() {
       const response = await api.get<PaginatedResponse<Customer>>(
         `/customers?page=${page}&limit=20&search=${searchQuery}`
       );
-      setCustomers(response.data);
-      setTotalPages(response.pagination.totalPages);
+      // Debug: log the shape we received for easier diagnosis in the browser
+      // eslint-disable-next-line no-console
+      console.debug('customers response', response);
+
+      // Normalize possible response shapes:
+      // 1) ApiResponse<PaginatedResponse<T>> => { success, message?, data: { data: T[], pagination } }
+      // 2) PaginatedResponse<T> directly => { success, data: T[], pagination }
+      // 3) Items array directly (T[])
+      const raw: any =
+        response && (response as any).data ? (response as any).data : response;
+
+      const items: Customer[] = Array.isArray(raw?.data)
+        ? raw.data
+        : Array.isArray(raw)
+          ? raw
+          : [];
+      const pages = raw?.pagination?.totalPages ?? 1;
+
+      setCustomers(items);
+      setTotalPages(pages);
     } catch (error) {
       console.error('Failed to fetch customers:', error);
     } finally {

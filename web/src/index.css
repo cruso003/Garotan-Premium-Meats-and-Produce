@@ -4,7 +4,8 @@
 
 @layer base {
   * {
-    @apply border-border;
+    /* Use a concrete border color utility; `border-border` wasn't defined in Tailwind config. */
+    @apply border-gray-200;
   }
 
   body {

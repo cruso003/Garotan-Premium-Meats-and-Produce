@@ -1,4 +1,9 @@
-import axios, { AxiosInstance, AxiosError, InternalAxiosRequestConfig } from 'axios';
+import axios from 'axios';
+import type {
+  AxiosInstance,
+  AxiosError,
+  InternalAxiosRequestConfig,
+} from 'axios';
 import type { ApiResponse, ApiError } from '@/types';
 
 const API_BASE_URL = '/api';
@@ -48,12 +53,15 @@ class ApiClient {
               throw new Error('No refresh token available');
             }
 
-            const response = await axios.post<ApiResponse<{
-              accessToken: string;
-              refreshToken: string;
-            }>>(`${API_BASE_URL}/auth/refresh`, { refreshToken });
+            const response = await axios.post<
+              ApiResponse<{
+                accessToken: string;
+                refreshToken: string;
+              }>
+            >(`${API_BASE_URL}/auth/refresh`, { refreshToken });
 
-            const { accessToken, refreshToken: newRefreshToken } = response.data.data;
+            const { accessToken, refreshToken: newRefreshToken } =
+              response.data.data;
             localStorage.setItem('accessToken', accessToken);
             localStorage.setItem('refreshToken', newRefreshToken);
 
