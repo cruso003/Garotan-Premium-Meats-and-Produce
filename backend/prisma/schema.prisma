@@ -1,0 +1,627 @@
+// Prisma schema for Garotan Management System
+
+generator client {
+  provider = "prisma-client-js"
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+}
+
+// ============================================================================
+// USER MANAGEMENT
+// ============================================================================
+
+enum UserRole {
+  ADMIN
+  STORE_MANAGER
+  CASHIER
+  COLD_ROOM_ATTENDANT
+  SALES_MANAGER
+  DELIVERY_COORDINATOR
+  DRIVER
+  ACCOUNTANT
+}
+
+enum UserStatus {
+  ACTIVE
+  INACTIVE
+}
+
+model User {
+  id        String     @id @default(cuid())
+  email     String     @unique
+  phone     String?
+  name      String
+  password  String
+  role      UserRole
+  status    UserStatus @default(ACTIVE)
+  createdAt DateTime   @default(now())
+  updatedAt DateTime   @updatedAt
+
+  // Relations
+  transactions       Transaction[]
+  stockAdjustments   StockAdjustment[]
+  coldRoomLogs       ColdRoomLog[]
+  expenseApprovals   Expense[]         @relation("ApprovedBy")
+  activityLogs       ActivityLog[]
+  ordersAsDriver     Order[]           @relation("AssignedDriver")
+  customersAsRep     Customer[]        @relation("SalesRep")
+
+  @@index([email])
+  @@index([role])
+  @@map("users")
+}
+
+// ============================================================================
+// PRODUCT MANAGEMENT
+// ============================================================================
+
+enum ProductCategory {
+  CHICKEN
+  BEEF
+  PORK
+  PRODUCE
+  VALUE_ADDED
+  OTHER
+}
+
+enum UnitOfMeasure {
+  KG
+  PIECES
+  TRAYS
+  BOXES
+  LITERS
+}
+
+enum StorageLocation {
+  CHILLER
+  FREEZER
+  PRODUCE_SECTION
+  DRY_STORAGE
+}
+
+model Product {
+  id              String          @id @default(cuid())
+  sku             String          @unique
+  barcode         String?         @unique
+  name            String
+  category        ProductCategory
+  subcategory     String?
+  unitOfMeasure   UnitOfMeasure
+  costPrice       Decimal         @db.Decimal(10, 2)
+  retailPrice     Decimal         @db.Decimal(10, 2)
+  wholesalePrice  Decimal         @db.Decimal(10, 2)
+  minStockLevel   Int             @default(0)
+  storageLocation StorageLocation
+  shelfLifeDays   Int?
+  supplier        String?
+  imageUrl        String?
+  description     String?
+  isActive        Boolean         @default(true)
+  createdAt       DateTime        @default(now())
+  updatedAt       DateTime        @updatedAt
+
+  // Relations
+  stockBatches          StockBatch[]
+  transactionItems      TransactionItem[]
+  orderItems            OrderItem[]
+  subscriptionPlanItems SubscriptionPlanItem[]
+
+  @@index([sku])
+  @@index([barcode])
+  @@index([category])
+  @@index([name])
+  @@map("products")
+}
+
+// ============================================================================
+// INVENTORY MANAGEMENT
+// ============================================================================
+
+model StockBatch {
+  id           String    @id @default(cuid())
+  productId    String
+  quantity     Decimal   @db.Decimal(10, 3)
+  expiryDate   DateTime?
+  receivedDate DateTime  @default(now())
+  supplier     String?
+  deliveryNote String?
+  createdAt    DateTime  @default(now())
+
+  // Relations
+  product          Product           @relation(fields: [productId], references: [id], onDelete: Cascade)
+  transactionItems TransactionItem[]
+  adjustments      StockAdjustment[]
+
+  @@index([productId])
+  @@index([expiryDate])
+  @@map("stock_batches")
+}
+
+enum AdjustmentType {
+  SPOILAGE
+  TRANSFER
+  CORRECTION
+  DAMAGED
+  THEFT
+  OTHER
+}
+
+model StockAdjustment {
+  id         String         @id @default(cuid())
+  productId  String
+  batchId    String?
+  type       AdjustmentType
+  quantity   Decimal        @db.Decimal(10, 3)
+  reason     String
+  approvedBy String?
+  createdAt  DateTime       @default(now())
+
+  // Relations
+  batch     StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+  approver  User?       @relation(fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@index([productId])
+  @@index([batchId])
+  @@index([createdAt])
+  @@map("stock_adjustments")
+}
+
+// ============================================================================
+// CUSTOMER MANAGEMENT
+// ============================================================================
+
+enum CustomerType {
+  RETAIL
+  B2B_RESTAURANT
+  B2B_HOTEL
+  B2B_INSTITUTION
+}
+
+enum LoyaltyTier {
+  BRONZE
+  SILVER
+  GOLD
+}
+
+model Customer {
+  id               String        @id @default(cuid())
+  name             String
+  phone            String        @unique
+  email            String?
+  customerType     CustomerType  @default(RETAIL)
+  address          String?
+  registrationDate DateTime      @default(now())
+  assignedSalesRep String?
+  loyaltyPoints    Int           @default(0)
+  loyaltyTier      LoyaltyTier   @default(BRONZE)
+  birthday         DateTime?
+  creditLimit      Decimal?      @db.Decimal(10, 2)
+  paymentTermsDays Int?
+  isActive         Boolean       @default(true)
+  createdAt        DateTime      @default(now())
+  updatedAt        DateTime      @updatedAt
+
+  // Relations
+  salesRep             User?                 @relation("SalesRep", fields: [assignedSalesRep], references: [id], onDelete: SetNull)
+  transactions         Transaction[]
+  loyaltyTransactions  LoyaltyTransaction[]
+  orders               Order[]
+  subscriptions        Subscription[]
+
+  @@index([phone])
+  @@index([name])
+  @@index([customerType])
+  @@map("customers")
+}
+
+// ============================================================================
+// LOYALTY PROGRAM
+// ============================================================================
+
+enum LoyaltyTransactionType {
+  EARNED
+  REDEEMED
+  ADJUSTMENT
+  EXPIRED
+}
+
+model LoyaltyTransaction {
+  id            String                 @id @default(cuid())
+  customerId    String
+  type          LoyaltyTransactionType
+  points        Int
+  transactionId String?
+  description   String?
+  createdAt     DateTime               @default(now())
+
+  // Relations
+  customer    Customer     @relation(fields: [customerId], references: [id], onDelete: Cascade)
+  transaction Transaction? @relation(fields: [transactionId], references: [id], onDelete: SetNull)
+
+  @@index([customerId])
+  @@index([createdAt])
+  @@map("loyalty_transactions")
+}
+
+// ============================================================================
+// TRANSACTIONS (POS)
+// ============================================================================
+
+enum PaymentMethod {
+  CASH
+  MOBILE_MONEY_MTN
+  MOBILE_MONEY_ORANGE
+  CARD
+  CREDIT
+  SPLIT
+}
+
+enum PaymentStatus {
+  PENDING
+  COMPLETED
+  FAILED
+  REFUNDED
+}
+
+model Transaction {
+  id                     String        @id @default(cuid())
+  transactionNumber      String        @unique
+  customerId             String?
+  cashierId              String
+  transactionDate        DateTime      @default(now())
+  subtotal               Decimal       @db.Decimal(10, 2)
+  discount               Decimal       @default(0) @db.Decimal(10, 2)
+  tax                    Decimal       @default(0) @db.Decimal(10, 2)
+  total                  Decimal       @db.Decimal(10, 2)
+  paymentMethod          PaymentMethod
+  paymentStatus          PaymentStatus @default(COMPLETED)
+  paymentReference       String?
+  loyaltyPointsEarned    Int           @default(0)
+  loyaltyPointsRedeemed  Int           @default(0)
+  isVoided               Boolean       @default(false)
+  voidReason             String?
+  notes                  String?
+  createdAt              DateTime      @default(now())
+  updatedAt              DateTime      @updatedAt
+
+  // Relations
+  customer            Customer?            @relation(fields: [customerId], references: [id], onDelete: SetNull)
+  cashier             User                 @relation(fields: [cashierId], references: [id], onDelete: Restrict)
+  items               TransactionItem[]
+  loyaltyTransactions LoyaltyTransaction[]
+
+  @@index([transactionNumber])
+  @@index([customerId])
+  @@index([cashierId])
+  @@index([transactionDate])
+  @@map("transactions")
+}
+
+model TransactionItem {
+  id            String   @id @default(cuid())
+  transactionId String
+  productId     String
+  batchId       String?
+  quantity      Decimal  @db.Decimal(10, 3)
+  unitPrice     Decimal  @db.Decimal(10, 2)
+  discount      Decimal  @default(0) @db.Decimal(10, 2)
+  total         Decimal  @db.Decimal(10, 2)
+  notes         String?
+  createdAt     DateTime @default(now())
+
+  // Relations
+  transaction Transaction @relation(fields: [transactionId], references: [id], onDelete: Cascade)
+  product     Product     @relation(fields: [productId], references: [id], onDelete: Restrict)
+  batch       StockBatch? @relation(fields: [batchId], references: [id], onDelete: SetNull)
+
+  @@index([transactionId])
+  @@index([productId])
+  @@map("transaction_items")
+}
+
+// ============================================================================
+// ORDER MANAGEMENT
+// ============================================================================
+
+enum OrderStatus {
+  PENDING
+  CONFIRMED
+  PREPARING
+  READY
+  OUT_FOR_DELIVERY
+  DELIVERED
+  COMPLETED
+  CANCELLED
+  FAILED
+}
+
+model Order {
+  id                 String        @id @default(cuid())
+  orderNumber        String        @unique
+  customerId         String
+  orderDate          DateTime      @default(now())
+  deliveryDate       DateTime?
+  deliveryAddress    String?
+  deliveryTimeWindow String?
+  status             OrderStatus   @default(PENDING)
+  assignedDriverId   String?
+  paymentMethod      PaymentMethod
+  paymentStatus      PaymentStatus @default(PENDING)
+  subtotal           Decimal       @db.Decimal(10, 2)
+  discount           Decimal       @default(0) @db.Decimal(10, 2)
+  total              Decimal       @db.Decimal(10, 2)
+  deliveryProofUrl   String?
+  customerSignature  String?
+  notes              String?
+  createdAt          DateTime      @default(now())
+  updatedAt          DateTime      @updatedAt
+
+  // Relations
+  customer       Customer    @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  assignedDriver User?       @relation("AssignedDriver", fields: [assignedDriverId], references: [id], onDelete: SetNull)
+  items          OrderItem[]
+
+  @@index([orderNumber])
+  @@index([customerId])
+  @@index([status])
+  @@index([deliveryDate])
+  @@map("orders")
+}
+
+model OrderItem {
+  id        String   @id @default(cuid())
+  orderId   String
+  productId String
+  quantity  Decimal  @db.Decimal(10, 3)
+  unitPrice Decimal  @db.Decimal(10, 2)
+  total     Decimal  @db.Decimal(10, 2)
+  createdAt DateTime @default(now())
+
+  // Relations
+  order   Order   @relation(fields: [orderId], references: [id], onDelete: Cascade)
+  product Product @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([orderId])
+  @@map("order_items")
+}
+
+// ============================================================================
+// SUBSCRIPTIONS
+// ============================================================================
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAUSED
+  CANCELLED
+  EXPIRED
+}
+
+enum SubscriptionFrequency {
+  WEEKLY
+  BIWEEKLY
+  MONTHLY
+}
+
+model SubscriptionPlan {
+  id          String                @id @default(cuid())
+  name        String
+  description String?
+  frequency   SubscriptionFrequency
+  price       Decimal               @db.Decimal(10, 2)
+  isActive    Boolean               @default(true)
+  createdAt   DateTime              @default(now())
+  updatedAt   DateTime              @updatedAt
+
+  // Relations
+  items         SubscriptionPlanItem[]
+  subscriptions Subscription[]
+
+  @@map("subscription_plans")
+}
+
+model SubscriptionPlanItem {
+  id        String   @id @default(cuid())
+  planId    String
+  productId String
+  quantity  Decimal  @db.Decimal(10, 3)
+  createdAt DateTime @default(now())
+
+  // Relations
+  plan    SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Cascade)
+  product Product          @relation(fields: [productId], references: [id], onDelete: Restrict)
+
+  @@index([planId])
+  @@map("subscription_plan_items")
+}
+
+model Subscription {
+  id              String               @id @default(cuid())
+  customerId      String
+  planId          String
+  startDate       DateTime             @default(now())
+  status          SubscriptionStatus   @default(ACTIVE)
+  frequency       SubscriptionFrequency
+  deliveryDay     String?
+  deliveryAddress String?
+  paymentStatus   PaymentStatus        @default(PENDING)
+  nextDelivery    DateTime?
+  createdAt       DateTime             @default(now())
+  updatedAt       DateTime             @updatedAt
+
+  // Relations
+  customer Customer         @relation(fields: [customerId], references: [id], onDelete: Restrict)
+  plan     SubscriptionPlan @relation(fields: [planId], references: [id], onDelete: Restrict)
+
+  @@index([customerId])
+  @@index([status])
+  @@index([nextDelivery])
+  @@map("subscriptions")
+}
+
+// ============================================================================
+// COLD ROOM MONITORING
+// ============================================================================
+
+enum ColdRoomSection {
+  CHILLER
+  FREEZER
+  PRODUCE
+}
+
+model ColdRoomLog {
+  id         String          @id @default(cuid())
+  section    ColdRoomSection
+  temperature Decimal        @db.Decimal(5, 2)
+  recordedBy String
+  recordedAt DateTime        @default(now())
+  notes      String?
+
+  // Relations
+  recorder User @relation(fields: [recordedBy], references: [id], onDelete: Restrict)
+
+  @@index([section])
+  @@index([recordedAt])
+  @@map("cold_room_logs")
+}
+
+// ============================================================================
+// FINANCIAL MANAGEMENT
+// ============================================================================
+
+enum ExpenseCategory {
+  UTILITIES
+  SALARIES
+  SUPPLIES
+  MARKETING
+  MAINTENANCE
+  TRANSPORT
+  RENT
+  OTHER
+}
+
+model Expense {
+  id          String          @id @default(cuid())
+  expenseDate DateTime
+  category    ExpenseCategory
+  amount      Decimal         @db.Decimal(10, 2)
+  description String
+  receiptUrl  String?
+  approvedBy  String?
+  createdAt   DateTime        @default(now())
+  updatedAt   DateTime        @updatedAt
+
+  // Relations
+  approver User? @relation("ApprovedBy", fields: [approvedBy], references: [id], onDelete: SetNull)
+
+  @@index([expenseDate])
+  @@index([category])
+  @@map("expenses")
+}
+
+// ============================================================================
+// MARKETING CAMPAIGNS
+// ============================================================================
+
+enum CampaignType {
+  PROMOTION
+  FLASH_SALE
+  LOYALTY_BONUS
+  REFERRAL
+  SEASONAL
+}
+
+enum CampaignStatus {
+  DRAFT
+  ACTIVE
+  COMPLETED
+  CANCELLED
+}
+
+enum DiscountType {
+  PERCENTAGE
+  FIXED_AMOUNT
+  PRODUCT_SPECIFIC
+}
+
+model Campaign {
+  id            String         @id @default(cuid())
+  name          String
+  description   String?
+  campaignType  CampaignType
+  startDate     DateTime
+  endDate       DateTime
+  targetSegment String?
+  discountType  DiscountType?
+  discountValue Decimal?       @db.Decimal(10, 2)
+  promoCode     String?        @unique
+  status        CampaignStatus @default(DRAFT)
+  createdAt     DateTime       @default(now())
+  updatedAt     DateTime       @updatedAt
+
+  // Relations
+  messages Message[]
+
+  @@index([status])
+  @@index([startDate])
+  @@map("campaigns")
+}
+
+enum MessageStatus {
+  PENDING
+  SENT
+  DELIVERED
+  FAILED
+}
+
+model Message {
+  id             String        @id @default(cuid())
+  campaignId     String?
+  customerId     String?
+  messageContent String
+  deliveryStatus MessageStatus @default(PENDING)
+  sentAt         DateTime?
+  createdAt      DateTime      @default(now())
+
+  // Relations
+  campaign Campaign? @relation(fields: [campaignId], references: [id], onDelete: SetNull)
+
+  @@index([campaignId])
+  @@index([deliveryStatus])
+  @@map("messages")
+}
+
+// ============================================================================
+// ACTIVITY LOG (Audit Trail)
+// ============================================================================
+
+enum ActivityAction {
+  CREATE
+  UPDATE
+  DELETE
+  VOID
+  LOGIN
+  LOGOUT
+}
+
+model ActivityLog {
+  id         String         @id @default(cuid())
+  userId     String
+  action     ActivityAction
+  entityType String
+  entityId   String?
+  details    String?
+  ipAddress  String?
+  userAgent  String?
+  createdAt  DateTime       @default(now())
+
+  // Relations
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId])
+  @@index([entityType])
+  @@index([createdAt])
+  @@map("activity_logs")
+}
