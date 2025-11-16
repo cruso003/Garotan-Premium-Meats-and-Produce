@@ -1,6 +1,7 @@
-import { useEffect } from 'react';
+import { useEffect, useState } from 'react';
 import { useForm } from 'react-hook-form';
 import Modal from '@/components/common/Modal';
+import ImageUpload from '@/components/products/ImageUpload';
 import type { Product, ProductCategory, UnitOfMeasure, StorageLocation } from '@/types';
 
 interface ProductFormData {
@@ -16,6 +17,7 @@ interface ProductFormData {
   minStockLevel: number;
   storageLocation: StorageLocation;
   shelfLifeDays?: number;
+  imageUrl?: string;
   isActive: boolean;
 }
 
@@ -34,6 +36,8 @@ export default function ProductModal({
   product,
   isLoading = false,
 }: ProductModalProps) {
+  const [imageUrl, setImageUrl] = useState<string>(product?.imageUrl || '');
+
   const {
     register,
     handleSubmit,
@@ -53,6 +57,7 @@ export default function ProductModal({
       minStockLevel: product.minStockLevel,
       storageLocation: product.storageLocation,
       shelfLifeDays: product.shelfLifeDays || undefined,
+      imageUrl: product.imageUrl || undefined,
       isActive: product.isActive,
     } : {
       isActive: true,
@@ -62,6 +67,7 @@ export default function ProductModal({
 
   useEffect(() => {
     if (product) {
+      setImageUrl(product.imageUrl || '');
       reset({
         name: product.name,
         description: product.description || undefined,
@@ -75,9 +81,11 @@ export default function ProductModal({
         minStockLevel: product.minStockLevel,
         storageLocation: product.storageLocation,
         shelfLifeDays: product.shelfLifeDays || undefined,
+        imageUrl: product.imageUrl || undefined,
         isActive: product.isActive,
       });
     } else {
+      setImageUrl('');
       reset({
         isActive: true,
         minStockLevel: 10,
@@ -86,8 +94,12 @@ export default function ProductModal({
   }, [product, reset]);
 
   const handleFormSubmit = async (data: ProductFormData) => {
-    await onSubmit(data);
+    await onSubmit({
+      ...data,
+      imageUrl: imageUrl || undefined,
+    });
     reset();
+    setImageUrl('');
   };
 
   return (
@@ -122,6 +134,14 @@ export default function ProductModal({
               rows={3}
               className="input w-full"
               {...register('description')}
+            />
+          </div>
+
+          <div className="col-span-2">
+            <ImageUpload
+              currentImageUrl={imageUrl}
+              onImageUploaded={setImageUrl}
+              folder="products"
             />
           </div>
 
