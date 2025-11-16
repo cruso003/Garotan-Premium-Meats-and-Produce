@@ -11,6 +11,8 @@ import Customers from '@/pages/customers/Customers';
 import Inventory from '@/pages/inventory/Inventory';
 import Reports from '@/pages/reports/Reports';
 import Settings from '@/pages/settings/Settings';
+import AuditTrail from '@/pages/audit/AuditTrail';
+import CSVOperations from '@/pages/operations/CSVOperations';
 
 function App() {
   useEffect(() => {
@@ -33,6 +35,8 @@ function App() {
             <Route path="/customers" element={<Customers />} />
             <Route path="/inventory" element={<Inventory />} />
             <Route path="/reports" element={<Reports />} />
+            <Route path="/audit" element={<AuditTrail />} />
+            <Route path="/csv" element={<CSVOperations />} />
             <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>
