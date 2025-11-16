@@ -1,6 +1,8 @@
 import { useState, useEffect } from 'react';
-import { Plus, Minus, Trash2, Search, User, Package, CheckCircle } from 'lucide-react';
+import { Plus, Minus, Trash2, Search, User, Package, CheckCircle, Camera } from 'lucide-react';
 import { api } from '@/lib/api';
+import BarcodeScanner from '@/components/barcode/BarcodeScanner';
+import PrintReceipt from '@/components/receipts/PrintReceipt';
 import type { Product, Customer } from '@/types';
 
 interface CartItem {
@@ -20,6 +22,11 @@ export default function POS() {
   const [paymentMethod, setPaymentMethod] = useState<string>('CASH');
   const [isProcessing, setIsProcessing] = useState(false);
   const [showSuccess, setShowSuccess] = useState(false);
+  const [isScannerOpen, setIsScannerOpen] = useState(false);
+  const [completedTransaction, setCompletedTransaction] = useState<{
+    id: string;
+    receiptNumber: string;
+  } | null>(null);
 
   useEffect(() => {
     fetchProducts();
@@ -41,11 +48,33 @@ export default function POS() {
   const fetchProducts = async () => {
     try {
       const response = await api.get<{ data: Product[] }>('/products?limit=100');
-      const activeProducts = response.data.filter((p) => p.isActive);
+      const activeProducts = response.data.data.filter((p: Product) => p.isActive);
       setProducts(activeProducts);
       setFilteredProducts(activeProducts.slice(0, 20));
     } catch (error) {
       console.error('Failed to fetch products:', error);
+    }
+  };
+
+  const handleBarcodeScanned = (barcode: string) => {
+    // Find product by barcode
+    const product = products.find(
+      (p) => p.barcode && p.barcode.toLowerCase() === barcode.toLowerCase()
+    );
+
+    if (product) {
+      addToCart(product);
+    } else {
+      // If not found by barcode, try SKU
+      const productBySku = products.find(
+        (p) => p.sku && p.sku.toLowerCase() === barcode.toLowerCase()
+      );
+
+      if (productBySku) {
+        addToCart(productBySku);
+      } else {
+        alert(`Product not found for barcode: ${barcode}`);
+      }
     }
   };
 
@@ -116,11 +145,17 @@ export default function POS() {
         })),
       };
 
-      await api.post('/transactions', transactionData);
+      const response = await api.post<{ data: { id: string; receiptNumber: string } }>('/transactions', transactionData);
+
+      // Store completed transaction for receipt printing
+      setCompletedTransaction({
+        id: response.data.data.id,
+        receiptNumber: response.data.data.receiptNumber,
+      });
 
       // Show success message
       setShowSuccess(true);
-      setTimeout(() => setShowSuccess(false), 3000);
+      setTimeout(() => setShowSuccess(false), 5000);
 
       // Clear cart
       setCart([]);
@@ -143,11 +178,22 @@ export default function POS() {
 
   return (
     <div className="h-full flex">
-      {/* Success notification */}
-      {showSuccess && (
-        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg flex items-center z-50">
-          <CheckCircle className="h-6 w-6 mr-3" />
-          <span className="font-semibold">Transaction completed successfully!</span>
+      {/* Success notification with print receipt */}
+      {showSuccess && completedTransaction && (
+        <div className="fixed top-4 right-4 bg-green-500 text-white px-6 py-4 rounded-lg shadow-lg z-50 max-w-md">
+          <div className="flex items-center mb-3">
+            <CheckCircle className="h-6 w-6 mr-3" />
+            <div>
+              <p className="font-semibold">Transaction completed successfully!</p>
+              <p className="text-sm opacity-90">Receipt #{completedTransaction.receiptNumber}</p>
+            </div>
+          </div>
+          <PrintReceipt
+            transactionId={completedTransaction.id}
+            receiptNumber={completedTransaction.receiptNumber}
+            onPrintComplete={() => setCompletedTransaction(null)}
+            className="mt-2"
+          />
         </div>
       )}
 
@@ -156,16 +202,26 @@ export default function POS() {
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900 mb-4">Point of Sale</h1>
 
-          {/* Search bar */}
-          <div className="relative">
-            <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
-            <input
-              type="text"
-              placeholder="Search products by name, SKU, or barcode..."
-              className="input w-full pl-10"
-              value={searchQuery}
-              onChange={(e) => setSearchQuery(e.target.value)}
-            />
+          {/* Search bar with scanner button */}
+          <div className="flex gap-3">
+            <div className="flex-1 relative">
+              <Search className="absolute left-3 top-1/2 transform -translate-y-1/2 h-5 w-5 text-gray-400" />
+              <input
+                type="text"
+                placeholder="Search products by name, SKU, or barcode..."
+                className="input w-full pl-10"
+                value={searchQuery}
+                onChange={(e) => setSearchQuery(e.target.value)}
+              />
+            </div>
+            <button
+              onClick={() => setIsScannerOpen(true)}
+              className="btn btn-primary flex items-center px-4"
+              title="Scan barcode with camera"
+            >
+              <Camera className="h-5 w-5 mr-2" />
+              Scan
+            </button>
           </div>
         </div>
 
@@ -178,8 +234,16 @@ export default function POS() {
                 onClick={() => addToCart(product)}
                 className="card hover:shadow-lg transition-shadow text-left"
               >
-                <div className="aspect-square bg-gray-200 rounded-lg mb-3 flex items-center justify-center">
-                  <Package className="h-12 w-12 text-gray-400" />
+                <div className="aspect-square bg-gray-200 rounded-lg mb-3 overflow-hidden flex items-center justify-center">
+                  {product.imageUrl ? (
+                    <img
+                      src={product.imageUrl}
+                      alt={product.name}
+                      className="w-full h-full object-cover"
+                    />
+                  ) : (
+                    <Package className="h-12 w-12 text-gray-400" />
+                  )}
                 </div>
                 <h3 className="font-semibold text-gray-900 mb-1 truncate">
                   {product.name}
@@ -324,6 +388,13 @@ export default function POS() {
           </button>
         </div>
       </div>
+
+      {/* Barcode Scanner Modal */}
+      <BarcodeScanner
+        isOpen={isScannerOpen}
+        onClose={() => setIsScannerOpen(false)}
+        onScan={handleBarcodeScanned}
+      />
     </div>
   );
 }

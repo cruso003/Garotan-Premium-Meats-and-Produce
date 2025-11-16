@@ -32,6 +32,11 @@ interface Config {
   websocket: {
     port: number;
   };
+  cloudinary: {
+    cloudName: string;
+    apiKey: string;
+    apiSecret: string;
+  };
 }
 
 export const config: Config = {
@@ -64,10 +69,22 @@ export const config: Config = {
   websocket: {
     port: parseInt(process.env.WEBSOCKET_PORT || '3001', 10),
   },
+  cloudinary: {
+    cloudName: process.env.CLOUDINARY_CLOUD_NAME || '',
+    apiKey: process.env.CLOUDINARY_API_KEY || '',
+    apiSecret: process.env.CLOUDINARY_API_SECRET || '',
+  },
 };
 
 // Validate required environment variables
-const requiredEnvVars = ['DATABASE_URL', 'JWT_SECRET', 'JWT_REFRESH_SECRET'];
+const requiredEnvVars = [
+  'DATABASE_URL',
+  'JWT_SECRET',
+  'JWT_REFRESH_SECRET',
+  'CLOUDINARY_CLOUD_NAME',
+  'CLOUDINARY_API_KEY',
+  'CLOUDINARY_API_SECRET',
+];
 
 const missingEnvVars = requiredEnvVars.filter(
   (envVar) => !process.env[envVar]

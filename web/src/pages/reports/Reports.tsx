@@ -31,12 +31,12 @@ export default function Reports() {
     try {
       setLoading(true);
       const [trendsRes, categoryRes] = await Promise.all([
-        api.get(`/reports/sales-trends?period=${period}`),
-        api.get('/reports/sales-by-category'),
+        api.get<SalesTrend[]>(`/reports/sales-trends?period=${period}`),
+        api.get<CategorySales[]>('/reports/sales-by-category'),
       ]);
 
-      setSalesTrends(trendsRes.data);
-      setCategorySales(categoryRes.data);
+      setSalesTrends(trendsRes.data as SalesTrend[]);
+      setCategorySales(categoryRes.data as CategorySales[]);
 
       // Calculate totals
       const revenue = salesTrends.reduce((sum, item) => sum + item.revenue, 0);

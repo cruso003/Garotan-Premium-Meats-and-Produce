@@ -6,6 +6,8 @@ import customerRoutes from './customer.routes';
 import inventoryRoutes from './inventory.routes';
 import reportRoutes from './report.routes';
 import userRoutes from './user.routes';
+import uploadRoutes from './upload.routes';
+import receiptRoutes from './receipt.routes';
 // Import other route modules as they are created
 // import orderRoutes from './order.routes';
 
@@ -28,6 +30,8 @@ router.use('/customers', customerRoutes);
 router.use('/inventory', inventoryRoutes);
 router.use('/reports', reportRoutes);
 router.use('/users', userRoutes);
+router.use('/upload', uploadRoutes);
+router.use('/receipts', receiptRoutes);
 // router.use('/orders', orderRoutes);
 
 export default router;
