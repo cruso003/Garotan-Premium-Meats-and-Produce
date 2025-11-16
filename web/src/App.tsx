@@ -9,6 +9,8 @@ import POS from '@/pages/pos/POS';
 import Products from '@/pages/products/Products';
 import Customers from '@/pages/customers/Customers';
 import Inventory from '@/pages/inventory/Inventory';
+import Reports from '@/pages/reports/Reports';
+import Settings from '@/pages/settings/Settings';
 
 function App() {
   useEffect(() => {
@@ -30,6 +32,8 @@ function App() {
             <Route path="/products" element={<Products />} />
             <Route path="/customers" element={<Customers />} />
             <Route path="/inventory" element={<Inventory />} />
+            <Route path="/reports" element={<Reports />} />
+            <Route path="/settings" element={<Settings />} />
           </Route>
         </Route>
 

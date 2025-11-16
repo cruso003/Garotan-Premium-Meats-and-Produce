@@ -316,6 +316,38 @@ export class InventoryService {
   }
 
   /**
+   * Get low stock products (below minimum level)
+   */
+  async getLowStockProducts() {
+    const products = await prisma.product.findMany({
+      where: {
+        isActive: true,
+      },
+      include: {
+        stockBatches: {
+          where: {
+            quantity: { gt: 0 },
+          },
+        },
+      },
+    });
+
+    return products
+      .map((product) => {
+        const totalStock = product.stockBatches.reduce(
+          (sum, batch) => sum + Number(batch.quantity),
+          0
+        );
+        return {
+          ...product,
+          currentStock: totalStock,
+        };
+      })
+      .filter((product) => product.currentStock <= product.minStockLevel)
+      .sort((a, b) => a.currentStock - b.currentStock);
+  }
+
+  /**
    * Get stock summary for all products
    */
   async getStockSummary(): Promise<ProductStockSummary[]> {

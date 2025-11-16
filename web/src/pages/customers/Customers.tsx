@@ -1,6 +1,7 @@
 import { useEffect, useState } from 'react';
 import { Plus, Search, Edit, Trash2, Phone, Mail, Award } from 'lucide-react';
 import { api } from '@/lib/api';
+import CustomerModal from '@/components/customers/CustomerModal';
 import type { Customer, PaginatedResponse } from '@/types';
 
 export default function Customers() {
@@ -9,6 +10,9 @@ export default function Customers() {
   const [searchQuery, setSearchQuery] = useState('');
   const [page, setPage] = useState(1);
   const [totalPages, setTotalPages] = useState(1);
+  const [isModalOpen, setIsModalOpen] = useState(false);
+  const [selectedCustomer, setSelectedCustomer] = useState<Customer | undefined>();
+  const [isSubmitting, setIsSubmitting] = useState(false);
 
   useEffect(() => {
     fetchCustomers();
@@ -26,6 +30,50 @@ export default function Customers() {
       console.error('Failed to fetch customers:', error);
     } finally {
       setLoading(false);
+    }
+  };
+
+  const handleAddCustomer = () => {
+    setSelectedCustomer(undefined);
+    setIsModalOpen(true);
+  };
+
+  const handleEditCustomer = (customer: Customer) => {
+    setSelectedCustomer(customer);
+    setIsModalOpen(true);
+  };
+
+  const handleDeleteCustomer = async (customer: Customer) => {
+    if (!confirm(`Are you sure you want to delete "${customer.name}"?`)) {
+      return;
+    }
+
+    try {
+      await api.delete(`/customers/${customer.id}`);
+      fetchCustomers();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to delete customer');
+    }
+  };
+
+  const handleSubmit = async (data: any) => {
+    setIsSubmitting(true);
+    try {
+      if (selectedCustomer) {
+        // Update existing customer
+        await api.put(`/customers/${selectedCustomer.id}`, data);
+      } else {
+        // Create new customer
+        await api.post('/customers', data);
+      }
+      setIsModalOpen(false);
+      setSelectedCustomer(undefined);
+      fetchCustomers();
+    } catch (error: any) {
+      alert(error.response?.data?.message || 'Failed to save customer');
+      throw error;
+    } finally {
+      setIsSubmitting(false);
     }
   };
 
@@ -58,7 +106,7 @@ export default function Customers() {
             Manage customer relationships and loyalty program
           </p>
         </div>
-        <button className="btn btn-primary flex items-center">
+        <button onClick={handleAddCustomer} className="btn btn-primary flex items-center">
           <Plus className="mr-2 h-5 w-5" />
           Add Customer
         </button>
@@ -77,12 +125,19 @@ export default function Customers() {
               onChange={(e) => setSearchQuery(e.target.value)}
               onKeyDown={(e) => {
                 if (e.key === 'Enter') {
+                  setPage(1);
                   fetchCustomers();
                 }
               }}
             />
           </div>
-          <button onClick={fetchCustomers} className="btn btn-primary">
+          <button
+            onClick={() => {
+              setPage(1);
+              fetchCustomers();
+            }}
+            className="btn btn-primary"
+          >
             Search
           </button>
         </div>
@@ -172,10 +227,18 @@ export default function Customers() {
                         </span>
                       </td>
                       <td className="px-6 py-4 whitespace-nowrap text-right text-sm">
-                        <button className="text-primary hover:text-primary-600 mr-3">
+                        <button
+                          onClick={() => handleEditCustomer(customer)}
+                          className="text-primary hover:text-primary-600 mr-3"
+                          title="Edit customer"
+                        >
                           <Edit className="h-4 w-4" />
                         </button>
-                        <button className="text-red-600 hover:text-red-700">
+                        <button
+                          onClick={() => handleDeleteCustomer(customer)}
+                          className="text-red-600 hover:text-red-700"
+                          title="Delete customer"
+                        >
                           <Trash2 className="h-4 w-4" />
                         </button>
                       </td>
@@ -210,6 +273,18 @@ export default function Customers() {
           </>
         )}
       </div>
+
+      {/* Customer Modal */}
+      <CustomerModal
+        isOpen={isModalOpen}
+        onClose={() => {
+          setIsModalOpen(false);
+          setSelectedCustomer(undefined);
+        }}
+        onSubmit={handleSubmit}
+        customer={selectedCustomer}
+        isLoading={isSubmitting}
+      />
     </div>
   );
 }
