@@ -4,10 +4,12 @@ import helmet from 'helmet';
 import compression from 'compression';
 import morgan from 'morgan';
 import rateLimit from 'express-rate-limit';
+import swaggerUi from 'swagger-ui-express';
 import { config } from './config/env';
 import { logger, morganStream } from './utils/logger';
 import routes from './routes';
 import { errorHandler, notFoundHandler } from './middlewares/errorHandler';
+import { swaggerSpec } from './config/swagger';
 
 const app: Application = express();
 
@@ -15,8 +17,19 @@ const app: Application = express();
 // MIDDLEWARE
 // ============================================================================
 
-// Security headers
-app.use(helmet());
+// Security headers (with CSP configured for Swagger UI)
+app.use(
+  helmet({
+    contentSecurityPolicy: {
+      directives: {
+        defaultSrc: ["'self'"],
+        styleSrc: ["'self'", "'unsafe-inline'"],
+        scriptSrc: ["'self'", "'unsafe-inline'"],
+        imgSrc: ["'self'", 'data:', 'validator.swagger.io'],
+      },
+    },
+  })
+);
 
 // CORS
 app.use(
@@ -56,6 +69,22 @@ app.use('/api/', limiter);
 // ============================================================================
 // ROUTES
 // ============================================================================
+
+// Swagger API Documentation
+app.use(
+  '/api-docs',
+  swaggerUi.serve,
+  swaggerUi.setup(swaggerSpec, {
+    customCss: '.swagger-ui .topbar { display: none }',
+    customSiteTitle: 'Garotan API Documentation',
+  })
+);
+
+// Swagger JSON
+app.get('/api-docs.json', (_req, res) => {
+  res.setHeader('Content-Type', 'application/json');
+  res.send(swaggerSpec);
+});
 
 // API routes
 app.use(config.server.apiPrefix, routes);
